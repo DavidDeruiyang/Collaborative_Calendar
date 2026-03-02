@@ -1,0 +1,8 @@
+# Environment files
+.env
+
+# VSCode
+.vscode/
+
+# Minikube
+.minikube/
