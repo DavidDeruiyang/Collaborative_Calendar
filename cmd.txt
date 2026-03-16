@@ -19,3 +19,7 @@ kubectl apply -f deploy.yaml
 
 //Enable port forwarding
 kubectl port-forward service/calendar-api-service 3000:3000
+
+Check existing images: docker images
+Check pod status: kubectl get pods
+Check all: kubectl get all

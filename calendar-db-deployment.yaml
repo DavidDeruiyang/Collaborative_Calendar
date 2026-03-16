@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calendar-db-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: calendar-db
+  template:
+    metadata:
+      labels:
+        app: calendar-db
+    spec:
+      containers:
+        - name: calendar-db
+          image: postgres:17
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "user"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: calendar-db-secret
+                  key: db-password
+            - name: POSTGRES_DB
+              value: "calendardb"
+          volumeMounts:
+            - name: db-storage
+              mountPath: /var/lib/postgresql/data
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d/init.sql
+              subPath: init.sql
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: db-pvc
+        - name: init-script
+          configMap:
+            name: postgres-init-script

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ---------------------
 # Node.js
 # ---------------------
@@ -46,3 +47,13 @@ build/
 # Docker
 # ---------------------
 docker-compose.override.yml
+=======
+# Environment files
+.env
+
+# VSCode
+.vscode/
+
+# Minikube
+.minikube/
+>>>>>>> 911aca9c90805b8e8cb9c1e2bb166ec75c3c855e

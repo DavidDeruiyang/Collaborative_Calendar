@@ -1,35 +1,160 @@
-Calendar Manager API (Kubernetes Edition)
-This project is a containerized Node.js application orchestrated by Kubernetes using Minikube. It features a persistent PostgreSQL 17 database and Redis for caching and activity statistics.
+# Collaborative Calendar (Kubernetes Edition)
 
-Prerequisites
-Before you begin, ensure you have Docker Desktop, Minikube, and kubectl installed. Windows users should use PowerShell.
+A cloud-native collaborative calendar platform that supports shared
+event management with persistent storage. The system runs as a
+containerized **Node.js API** deployed on **Kubernetes using Minikube**,
+with **PostgreSQL 17** as the database and **Redis** for caching.
 
-Deployment Steps
-Start Minikube by running: minikube start.
+------------------------------------------------------------------------
 
-Connect to Minikube Docker Environment: You must run "minikube docker-env | Invoke-Expression" in every new terminal window before building images so that Minikube can see your local Docker builds.
+# Prerequisites
 
-Build the Image: Run "docker build -t nodejs-image-v1 ." to build the application image directly into the Minikube registry.
+Before running the project, make sure the following tools are installed:
 
-Deploy Resources: Run "kubectl apply -f deploy.yaml" to deploy all components.
+-   Docker Desktop
+-   Minikube
+-   kubectl
+-   PowerShell (Windows)
 
-Management and Maintenance
-To restart the API after code changes, run: kubectl rollout restart deployment calendar-api.
+------------------------------------------------------------------------
 
-To delete a specific pod, run: kubectl delete pod [pod-name].
+# Project Architecture
 
-To stop and remove all resources, run: kubectl delete -f deploy.yaml.
+User Request \| v LoadBalancer Service (calendar-api-service) \| v
+Calendar API Pods (replicas = 2) \| \|-- PostgreSQL
+(calendar-db-service) \| \|-- Redis (calendar-redis-service)
 
-To completely wipe the database and all saved data, run: kubectl delete pvc db-pvc.
+Components used in this deployment:
 
-To monitor the status of your deployment, run: kubectl get all.
+-   Calendar API -- Node.js REST service
+-   PostgreSQL -- persistent relational database
+-   Redis -- caching layer
+-   PersistentVolumeClaim -- database storage
+-   ConfigMap -- database initialization script
+-   Secret -- database credentials
+-   Deployment -- manages pod replicas
+-   Service -- exposes pods through a load balancer
 
-To view live application logs, run: kubectl logs -f -l app=calendar-api.
+------------------------------------------------------------------------
 
-Accessing the Application
-Since the cluster runs in a virtual environment, you must forward the internal port to your local machine. Run "kubectl port-forward service/calendar-api-service 3000:3000" in a separate terminal.
+# Deployment Steps
 
-You can then access the API events at http://localhost:3000/events and usage stats at http://localhost:3000/stats.
+## 1. Start Docker Desktop
 
-Troubleshooting
-If you see an ErrImagePull error, ensure you ran the minikube docker-env command before building the image. If the database pod remains in a Pending state, verify that the storage addons are enabled and the PVC is bound. The initial database data from init.sql only loads if the database volume is empty; to re-initialize, you must delete the PVC and re-deploy.
+Ensure Docker Desktop is running before starting Minikube.
+
+## 2. Start Minikube
+
+minikube start
+
+## 3. Configure Docker to use Minikube Docker
+
+Run this in every new terminal before building the image:
+
+minikube docker-env \| Invoke-Expression
+
+## 4. Build the API Image
+
+docker build -t nodejs-image-v1 .
+
+## 5. Deploy Kubernetes Resources
+
+Run:
+
+.`\deploy`{=tex}.bat
+
+This deploys:
+
+-   PostgreSQL Deployment + Service
+-   Redis Deployment + Service
+-   Calendar API Deployment + Service
+-   PersistentVolumeClaim
+-   ConfigMap
+-   Secret
+
+------------------------------------------------------------------------
+
+# Accessing the Application
+
+Expose the API with:
+
+minikube service calendar-api-service --url
+
+You will receive a URL similar to:
+
+http://127.0.0.1:xxxxx
+
+Example endpoints:
+
+GET /events\
+POST /events\
+GET /stats
+
+Example:
+
+http://127.0.0.1:xxxxx/events
+
+------------------------------------------------------------------------
+
+# Useful Kubernetes Commands
+
+Check cluster resources:
+
+kubectl get all
+
+Check pods:
+
+kubectl get pods
+
+View API logs:
+
+kubectl logs -f -l app=calendar-api
+
+Restart API deployment:
+
+kubectl rollout restart deployment calendar-api-deployment
+
+Delete a pod:
+
+kubectl delete pod `<pod-name>`{=html}
+
+------------------------------------------------------------------------
+
+# Resetting the Database
+
+To wipe the database:
+
+kubectl delete pvc db-pvc
+
+Then redeploy:
+
+.`\deploy`{=tex}.bat
+
+------------------------------------------------------------------------
+
+# Troubleshooting
+
+ImagePullBackOff / ErrImagePull:
+
+Make sure you ran:
+
+minikube docker-env \| Invoke-Expression
+
+before building the image.
+
+Database stuck in Pending:
+
+kubectl get pvc
+
+Check API logs if API is not responding:
+
+kubectl logs -l app=calendar-api
+
+------------------------------------------------------------------------
+
+# Notes
+
+-   API runs **2 replicas**
+-   Health checks use the **/stats endpoint**
+-   PostgreSQL data persists using **PersistentVolumeClaim**
+-   Redis provides caching
