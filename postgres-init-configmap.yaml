@@ -8,6 +8,8 @@ data:
         id SERIAL PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
         email VARCHAR(100) UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        global_role VARCHAR(20) NOT NULL DEFAULT 'member',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -34,13 +36,19 @@ data:
         id SERIAL PRIMARY KEY,
         calendar_id INT REFERENCES calendars(id) ON DELETE CASCADE,
         user_id INT REFERENCES users(id) ON DELETE CASCADE,
-        permission VARCHAR(50) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        permission VARCHAR(50) NOT NULL CHECK (permission IN ('viewer', 'editor')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (calendar_id, user_id)
     );
 
-    INSERT INTO users (name, email)
-    VALUES ('John Doe', 'john@example.com')
-    ON CONFLICT DO NOTHING;
+    INSERT INTO users (name, email, password_hash, global_role)
+    VALUES (
+        'John Doe',
+        'john@example.com',
+        '$2b$10$replace_with_real_bcrypt_hash',
+        'member'
+    )
+    ON CONFLICT (email) DO NOTHING;
 
     INSERT INTO calendars (user_id, name)
     VALUES (1, 'Work')
