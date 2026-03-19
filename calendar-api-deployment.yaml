@@ -36,6 +36,11 @@ spec:
               value: "calendar-redis-service"
             - name: REDIS_PORT
               value: "6379"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: calendar-api-secret
+                  key: jwt-secret
           readinessProbe:
             httpGet:
               path: /stats
