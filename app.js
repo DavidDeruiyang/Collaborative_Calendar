@@ -1,8 +1,16 @@
 const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
 const { Pool } = require("pg");
 const { createClient } = require("redis");
 const app = express();
 const port = 3000;
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*"
+  }
+});
 
 // auth const
 const bcrypt = require("bcryptjs");
@@ -133,6 +141,97 @@ function requireAuth(req, res, next) {
   }
 }
 
+// web socket auth
+function extractSocketToken(socket) {
+  const raw =
+    socket.handshake.auth?.token ||
+    socket.handshake.headers?.authorization ||
+    "";
+
+  if (!raw) return null;
+
+  if (raw.startsWith("Bearer ")) {
+    return raw.slice(7);
+  }
+
+  return raw;
+}
+
+io.use((socket, next) => {
+  try {
+    const token = extractSocketToken(socket);
+
+    if (!token) {
+      return next(new Error("Missing token"));
+    }
+
+    const user = jwt.verify(token, JWT_SECRET);
+    socket.data.user = user;
+    next();
+  } catch (err) {
+    next(new Error("Invalid or expired token"));
+  }
+});
+
+io.on("connection", (socket) => {
+  console.log(`Socket connected: ${socket.id}, user=${socket.data.user.email}`);
+
+  socket.on("join_calendar", async (calendarId, callback) => {
+    try {
+      const parsedCalendarId = Number(calendarId);
+
+      if (Number.isNaN(parsedCalendarId)) {
+        if (callback) callback({ ok: false, error: "Invalid calendar id" });
+        return;
+      }
+
+      const role = await getCalendarRole(socket.data.user.id, parsedCalendarId);
+
+      if (!canRead(role)) {
+        if (callback) callback({ ok: false, error: "You do not have access to this calendar" });
+        return;
+      }
+
+      const roomName = `calendar:${parsedCalendarId}`;
+      socket.join(roomName);
+
+      if (callback) {
+        callback({
+          ok: true,
+          room: roomName,
+          role
+        });
+      }
+    } catch (err) {
+      console.error("join_calendar error:", err);
+      if (callback) callback({ ok: false, error: "Server error" });
+    }
+  });
+
+  socket.on("leave_calendar", (calendarId, callback) => {
+    const parsedCalendarId = Number(calendarId);
+
+    if (Number.isNaN(parsedCalendarId)) {
+      if (callback) callback({ ok: false, error: "Invalid calendar id" });
+      return;
+    }
+
+    const roomName = `calendar:${parsedCalendarId}`;
+    socket.leave(roomName);
+
+    if (callback) {
+      callback({
+        ok: true,
+        room: roomName
+      });
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`Socket disconnected: ${socket.id}`);
+  });
+});
+
 // POST /events: Create a new event
 app.post("/events", requireAuth, async (req, res) => {
   const { calendar_id, title, description, start_time, end_time, location } = req.body;
@@ -170,6 +269,9 @@ app.post("/events", requireAuth, async (req, res) => {
     );
 
     await redisClient.incr("eventCount");
+
+    // socket io emission
+    io.to(`calendar:${calendarId}`).emit("event_created", result.rows[0]);
 
     return res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -281,6 +383,9 @@ app.put("/events/:id", requireAuth, async (req, res) => {
       ]
     );
 
+    // socket io emission
+    io.to(`calendar:${existingEvent.calendar_id}`).emit("event_updated", updateResult.rows[0]);
+
     return res.status(200).json(updateResult.rows[0]);
   } catch (err) {
     console.error(err);
@@ -309,8 +414,16 @@ app.delete("/events/:id", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "You do not have permission to delete this event" });
     }
 
+    const deletedEventPayload = {
+      id: existingEvent.id,
+      calendar_id: existingEvent.calendar_id,
+      title: existingEvent.title
+    };
+
     await pool.query("DELETE FROM events WHERE id = $1", [id]);
     await redisClient.decr("eventCount");
+
+    io.to(`calendar:${existingEvent.calendar_id}`).emit("event_deleted", deletedEventPayload);
 
     return res.status(204).send();
   } catch (err) {
@@ -812,6 +925,6 @@ app.delete("/calendars/:id/members/:userId", requireAuth, async (req, res) => {
 });
 
 // Start the server
-app.listen(port, () => {
-  console.log(`API running on http://localhost:${port}`);
+server.listen(port, () => {
+  console.log(`API + Socket.IO running on http://localhost:${port}`);
 });

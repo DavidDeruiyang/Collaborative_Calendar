@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: calendar-api-deployment
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: calendar-api
