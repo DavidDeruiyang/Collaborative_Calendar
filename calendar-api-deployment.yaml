@@ -41,6 +41,41 @@ spec:
                 secretKeyRef:
                   name: calendar-api-secret
                   key: jwt-secret
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: calendar-mail-secret
+                  key: smtp-host
+
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: calendar-mail-secret
+                  key: smtp-port
+
+            - name: SMTP_SECURE
+              valueFrom:
+                secretKeyRef:
+                  name: calendar-mail-secret
+                  key: smtp-secure
+
+            - name: SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: calendar-mail-secret
+                  key: smtp-user
+
+            - name: SMTP_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: calendar-mail-secret
+                  key: smtp-pass
+
+            - name: MAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: calendar-mail-secret
+                  key: mail-from
           readinessProbe:
             httpGet:
               path: /stats

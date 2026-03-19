@@ -17,6 +17,9 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
 
+// mailer
+const nodemailer = require("nodemailer");
+
 // Middleware to parse JSON request bodies
 app.use(express.json());
 
@@ -55,6 +58,92 @@ async function initializeEventCount() {
     // Store the result back into Redis
     await redisClient.set("eventCount", count);
   }
+}
+
+// mailer help func
+const mailEnabled =
+  !!process.env.SMTP_HOST &&
+  !!process.env.SMTP_PORT &&
+  !!process.env.SMTP_USER &&
+  !!process.env.SMTP_PASS;
+
+const mailTransporter = mailEnabled
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      secure: String(process.env.SMTP_SECURE || "false") === "true",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    })
+  : null;
+
+async function sendEmailSafe({ to, subject, text, html }) {
+  if (!mailTransporter) {
+    console.log("Email disabled: SMTP settings are missing");
+    return false;
+  }
+
+  try {
+    await mailTransporter.sendMail({
+      from: process.env.MAIL_FROM || process.env.SMTP_USER,
+      to,
+      subject,
+      text,
+      html
+    });
+
+    console.log(`Email sent to ${to}: ${subject}`);
+    return true;
+  } catch (err) {
+    console.error("Email send failed:", err);
+    return false;
+  }
+}
+
+async function getCalendarNotificationRecipients(calendarId, excludeUserId) {
+  const result = await pool.query(
+    `
+    SELECT DISTINCT u.id, u.name, u.email
+    FROM (
+      SELECT user_id FROM calendars WHERE id = $1
+      UNION
+      SELECT user_id FROM calendar_shares WHERE calendar_id = $1
+    ) recipients
+    JOIN users u ON u.id = recipients.user_id
+    WHERE recipients.user_id <> $2
+    ORDER BY u.email ASC
+    `,
+    [calendarId, excludeUserId]
+  );
+
+  return result.rows;
+}
+
+async function notifyCalendarRecipients({
+  calendarId,
+  excludeUserId,
+  subject,
+  textBuilder,
+  htmlBuilder
+}) {
+  const recipients = await getCalendarNotificationRecipients(calendarId, excludeUserId);
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  await Promise.allSettled(
+    recipients.map((recipient) =>
+      sendEmailSafe({
+        to: recipient.email,
+        subject,
+        text: textBuilder(recipient),
+        html: htmlBuilder ? htmlBuilder(recipient) : undefined
+      })
+    )
+  );
 }
 
 // permission helper (getCalendarRole, canWrite, canRead, canDelete)
@@ -270,6 +359,19 @@ app.post("/events", requireAuth, async (req, res) => {
 
     await redisClient.incr("eventCount");
 
+    // mail notification
+    await notifyCalendarRecipients({
+      calendarId,
+      excludeUserId: req.user.id,
+      subject: `Event created: ${result.rows[0].title}`,
+      textBuilder: () =>
+        `${req.user.email} created a new event "${result.rows[0].title}" in calendar ${calendarId}.`,
+      htmlBuilder: () => `
+        <p><strong>${req.user.email}</strong> created a new event
+        "<strong>${result.rows[0].title}</strong>" in calendar <strong>${calendarId}</strong>.</p>
+      `
+    });
+
     // socket io emission
     io.to(`calendar:${calendarId}`).emit("event_created", result.rows[0]);
 
@@ -382,6 +484,19 @@ app.put("/events/:id", requireAuth, async (req, res) => {
         id
       ]
     );
+
+    // mail notification
+    await notifyCalendarRecipients({
+      calendarId: existingEvent.calendar_id,
+      excludeUserId: req.user.id,
+      subject: `Event updated: ${updateResult.rows[0].title}`,
+      textBuilder: () =>
+        `${req.user.email} updated the event "${updateResult.rows[0].title}" in calendar ${existingEvent.calendar_id}.`,
+      htmlBuilder: () => `
+        <p><strong>${req.user.email}</strong> updated the event
+        "<strong>${updateResult.rows[0].title}</strong>" in calendar <strong>${existingEvent.calendar_id}</strong>.</p>
+      `
+    });
 
     // socket io emission
     io.to(`calendar:${existingEvent.calendar_id}`).emit("event_updated", updateResult.rows[0]);
@@ -769,6 +884,17 @@ app.post("/calendars/:id/share", requireAuth, async (req, res) => {
       `,
       [calendarId, targetUser.id, permission]
     );
+
+    // mail notification
+    await sendEmailSafe({
+      to: targetUser.email,
+      subject: `A calendar was shared with you: ${calendar.name}`,
+      text: `${req.user.email} shared the calendar "${calendar.name}" with you as ${permission}.`,
+      html: `
+        <p><strong>${req.user.email}</strong> shared the calendar
+        "<strong>${calendar.name}</strong>" with you as <strong>${permission}</strong>.</p>
+      `
+    });
 
     return res.status(200).json({
       message: "Calendar shared successfully",
