@@ -4,6 +4,11 @@ const { createClient } = require("redis");
 const app = express();
 const port = 3000;
 
+// auth const
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+
 // Middleware to parse JSON request bodies
 app.use(express.json());
 
@@ -44,108 +49,273 @@ async function initializeEventCount() {
   }
 }
 
+// permission helper (getCalendarRole, canWrite, canRead, canDelete)
+async function getCalendarRole(userId, calendarId) {
+  const ownerResult = await pool.query(
+    "SELECT user_id FROM calendars WHERE id = $1",
+    [calendarId]
+  );
+
+  if (ownerResult.rows.length === 0) {
+    return null;
+  }
+
+  if (ownerResult.rows[0].user_id === userId) {
+    return "owner";
+  }
+
+  const shareResult = await pool.query(
+    "SELECT permission FROM calendar_shares WHERE calendar_id = $1 AND user_id = $2",
+    [calendarId, userId]
+  );
+
+  if (shareResult.rows.length === 0) {
+    return null;
+  }
+
+  return shareResult.rows[0].permission;
+}
+
+function canRead(role) {
+  return role === "owner" || role === "editor" || role === "viewer";
+}
+
+function canWrite(role) {
+  return role === "owner" || role === "editor";
+}
+
+function canDelete(role) {
+  return role === "owner";
+}
+
+async function getEventById(eventId) {
+  const result = await pool.query(
+    `
+    SELECT e.*, c.user_id AS owner_id
+    FROM events e
+    JOIN calendars c ON e.calendar_id = c.id
+    WHERE e.id = $1
+    `,
+    [eventId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return result.rows[0];
+}
+
+// token generator func
+function generateToken(user) {
+  return jwt.sign(
+    { id: user.id, email: user.email, global_role: user.global_role },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+}
+
+// auth middleware
+function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing or invalid token" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+}
+
 // POST /events: Create a new event
-app.post("/events", async (req, res) => {
+app.post("/events", requireAuth, async (req, res) => {
   const { calendar_id, title, description, start_time, end_time, location } = req.body;
 
   if (!calendar_id || !title || !start_time || !end_time) {
-    return res.status(400).json({ error: "Required fields: calendar_id, title, start_time, end_time" });
+    return res.status(400).json({
+      error: "Required fields: calendar_id, title, start_time, end_time"
+    });
   }
 
-  const eventData = { calendar_id, title, description, start_time, end_time, location };
+  const calendarId = Number(calendar_id);
+
+  if (Number.isNaN(calendarId)) {
+    return res.status(400).json({ error: "calendar_id must be a number" });
+  }
 
   try {
-    // Insert the event into PostgreSQL ("events" table)
-    const result = await pool.query(
-      "INSERT INTO events (calendar_id, title, description, start_time, end_time, location) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
-      [eventData.calendar_id, eventData.title, eventData.description, eventData.start_time, eventData.end_time, eventData.location]
-    );
-    const newId = result.rows[0].id;
+    const role = await getCalendarRole(req.user.id, calendarId);
 
-    // Increment "eventCount" in Redis
+    if (!role) {
+      return res.status(403).json({ error: "You do not have access to this calendar" });
+    }
+
+    if (!canWrite(role)) {
+      return res.status(403).json({ error: "You do not have permission to create events" });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO events (calendar_id, title, description, start_time, end_time, location)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+      `,
+      [calendarId, title, description || null, start_time, end_time, location || null]
+    );
+
     await redisClient.incr("eventCount");
 
-    res.status(201).json({ id: newId });
+    return res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
-// GET /events: Retrieve all events
-app.get("/events", async (req, res) => {
+// GET /events: Retrieve only events visible to the logged-in user
+app.get("/events", requireAuth, async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM events ORDER BY start_time ASC");
-    res.status(200).json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-// GET /events/:id: Retrieve an event by ID
-app.get("/events/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const result = await pool.query("SELECT * FROM events WHERE id = $1", [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Event not found" });
-    }
-
-    res.status(200).json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-// PUT /events/:id: Update an event by ID (supports partial update)
-app.put("/events/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const result = await pool.query("SELECT * FROM events WHERE id = $1", [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Event not found" });
-    }
-
-    const existingData = result.rows[0];
-    const updatedData = {
-      title: req.body.title !== undefined ? req.body.title : existingData.title,
-      description: req.body.description !== undefined ? req.body.description : existingData.description,
-      start_time: req.body.start_time !== undefined ? req.body.start_time : existingData.start_time,
-      end_time: req.body.end_time !== undefined ? req.body.end_time : existingData.end_time,
-      location: req.body.location !== undefined ? req.body.location : existingData.location,
-    };
-
-    await pool.query(
-      "UPDATE events SET title = $1, description = $2, start_time = $3, end_time = $4, location = $5 WHERE id = $6",
-      [updatedData.title, updatedData.description, updatedData.start_time, updatedData.end_time, updatedData.location, id]
+    const result = await pool.query(
+      `
+      SELECT DISTINCT e.*
+      FROM events e
+      JOIN calendars c ON e.calendar_id = c.id
+      LEFT JOIN calendar_shares cs
+        ON cs.calendar_id = c.id
+        AND cs.user_id = $1
+      WHERE c.user_id = $1
+         OR cs.user_id = $1
+      ORDER BY e.start_time ASC
+      `,
+      [req.user.id]
     );
 
-    res.status(200).json({ id, data: updatedData });
+    return res.status(200).json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
-// DELETE /events/:id: Delete an event by ID
-app.delete("/events/:id", async (req, res) => {
+// GET /events/:id: Retrieve one event if user can read its calendar
+app.get("/events/:id", requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const result = await pool.query("DELETE FROM events WHERE id = $1 RETURNING id", [id]);
 
-    if (result.rows.length === 0) {
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid event id" });
+    }
+
+    const event = await getEventById(id);
+
+    if (!event) {
       return res.status(404).json({ error: "Event not found" });
     }
 
-    await redisClient.decr("eventCount");
-    res.status(204).send();
+    const role = await getCalendarRole(req.user.id, event.calendar_id);
+
+    if (!canRead(role)) {
+      return res.status(403).json({ error: "You do not have access to this event" });
+    }
+
+    return res.status(200).json(event);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PUT /events/:id: Update an event if user can write to its calendar
+app.put("/events/:id", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid event id" });
+    }
+
+    const existingEvent = await getEventById(id);
+
+    if (!existingEvent) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const role = await getCalendarRole(req.user.id, existingEvent.calendar_id);
+
+    if (!canWrite(role)) {
+      return res.status(403).json({ error: "You do not have permission to update this event" });
+    }
+
+    const updatedData = {
+      title: req.body.title !== undefined ? req.body.title : existingEvent.title,
+      description: req.body.description !== undefined ? req.body.description : existingEvent.description,
+      start_time: req.body.start_time !== undefined ? req.body.start_time : existingEvent.start_time,
+      end_time: req.body.end_time !== undefined ? req.body.end_time : existingEvent.end_time,
+      location: req.body.location !== undefined ? req.body.location : existingEvent.location,
+    };
+
+    const updateResult = await pool.query(
+      `
+      UPDATE events
+      SET title = $1,
+          description = $2,
+          start_time = $3,
+          end_time = $4,
+          location = $5
+      WHERE id = $6
+      RETURNING *
+      `,
+      [
+        updatedData.title,
+        updatedData.description,
+        updatedData.start_time,
+        updatedData.end_time,
+        updatedData.location,
+        id
+      ]
+    );
+
+    return res.status(200).json(updateResult.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// DELETE /events/:id: Delete an event if user is the owner of the calendar
+app.delete("/events/:id", requireAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid event id" });
+    }
+
+    const existingEvent = await getEventById(id);
+
+    if (!existingEvent) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const role = await getCalendarRole(req.user.id, existingEvent.calendar_id);
+
+    if (!canDelete(role)) {
+      return res.status(403).json({ error: "You do not have permission to delete this event" });
+    }
+
+    await pool.query("DELETE FROM events WHERE id = $1", [id]);
+    await redisClient.decr("eventCount");
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
@@ -159,6 +329,308 @@ app.get("/stats", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /auth/register: 
+app.post("/auth/register", async (req, res) => {
+  const { name, email, password } = req.body;
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: "name, email, and password are required" });
+  }
+
+  try {
+    const existing = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: "Email already in use" });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      `INSERT INTO users (name, email, password_hash, global_role)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, email, global_role`,
+      [name, email, passwordHash, "member"]
+    );
+
+    const user = result.rows[0];
+    const token = generateToken(user);
+
+    res.status(201).json({ user, token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /auth/login:
+app.post("/auth/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "email and password are required" });
+  }
+
+  try {
+    const result = await pool.query(
+      "SELECT id, name, email, password_hash, global_role FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const user = result.rows[0];
+    const ok = await bcrypt.compare(password, user.password_hash);
+
+    if (!ok) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    const token = generateToken(user);
+
+    res.status(200).json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        global_role: user.global_role
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /me:
+app.get("/me", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, name, email, global_role, created_at FROM users WHERE id = $1",
+      [req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.status(200).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /calendars/:id/share: share calendar
+app.post("/calendars/:id/share", requireAuth, async (req, res) => {
+  const calendarId = Number(req.params.id);
+  const { user_email, permission } = req.body;
+
+  if (Number.isNaN(calendarId)) {
+    return res.status(400).json({ error: "Invalid calendar id" });
+  }
+
+  if (!user_email || !permission) {
+    return res.status(400).json({ error: "user_email and permission are required" });
+  }
+
+  if (!["viewer", "editor"].includes(permission)) {
+    return res.status(400).json({ error: "permission must be viewer or editor" });
+  }
+
+  try {
+    const calendarResult = await pool.query(
+      "SELECT * FROM calendars WHERE id = $1",
+      [calendarId]
+    );
+
+    if (calendarResult.rows.length === 0) {
+      return res.status(404).json({ error: "Calendar not found" });
+    }
+
+    const calendar = calendarResult.rows[0];
+
+    if (calendar.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Only the calendar owner can share it" });
+    }
+
+    const userResult = await pool.query(
+      "SELECT id, email FROM users WHERE email = $1",
+      [user_email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "Target user not found" });
+    }
+
+    const targetUser = userResult.rows[0];
+
+    await pool.query(
+      `
+      INSERT INTO calendar_shares (calendar_id, user_id, permission)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (calendar_id, user_id)
+      DO UPDATE SET permission = EXCLUDED.permission
+      `,
+      [calendarId, targetUser.id, permission]
+    );
+
+    return res.status(200).json({
+      message: "Calendar shared successfully",
+      calendar_id: calendarId,
+      user_id: targetUser.id,
+      permission
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /calendars/:id/members: listen calendar members
+app.get("/calendars/:id/members", requireAuth, async (req, res) => {
+  const calendarId = Number(req.params.id);
+
+  if (Number.isNaN(calendarId)) {
+    return res.status(400).json({ error: "Invalid calendar id" });
+  }
+
+  try {
+    const calendarResult = await pool.query(
+      "SELECT * FROM calendars WHERE id = $1",
+      [calendarId]
+    );
+
+    if (calendarResult.rows.length === 0) {
+      return res.status(404).json({ error: "Calendar not found" });
+    }
+
+    const calendar = calendarResult.rows[0];
+    const role = await getCalendarRole(req.user.id, calendarId);
+
+    if (!canRead(role)) {
+      return res.status(403).json({ error: "You do not have access to this calendar" });
+    }
+
+    const membersResult = await pool.query(
+      `
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        cs.permission
+      FROM calendar_shares cs
+      JOIN users u ON cs.user_id = u.id
+      WHERE cs.calendar_id = $1
+      ORDER BY u.name ASC
+      `,
+      [calendarId]
+    );
+
+    return res.status(200).json({
+      owner_id: calendar.user_id,
+      shared_members: membersResult.rows
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /calendars/:id/members/:userId: update a member's permission
+app.patch("/calendars/:id/members/:userId", requireAuth, async (req, res) => {
+  const calendarId = Number(req.params.id);
+  const targetUserId = Number(req.params.userId);
+  const { permission } = req.body;
+
+  if (Number.isNaN(calendarId) || Number.isNaN(targetUserId)) {
+    return res.status(400).json({ error: "Invalid id" });
+  }
+
+  if (!["viewer", "editor"].includes(permission)) {
+    return res.status(400).json({ error: "permission must be viewer or editor" });
+  }
+
+  try {
+    const calendarResult = await pool.query(
+      "SELECT * FROM calendars WHERE id = $1",
+      [calendarId]
+    );
+
+    if (calendarResult.rows.length === 0) {
+      return res.status(404).json({ error: "Calendar not found" });
+    }
+
+    const calendar = calendarResult.rows[0];
+
+    if (calendar.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Only owner can update member roles" });
+    }
+
+    const updateResult = await pool.query(
+      `
+      UPDATE calendar_shares
+      SET permission = $1
+      WHERE calendar_id = $2 AND user_id = $3
+      RETURNING *
+      `,
+      [permission, calendarId, targetUserId]
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ error: "Shared member not found" });
+    }
+
+    return res.status(200).json(updateResult.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// DELETE /calendars/:id/members/:userId: remove member from calendar
+app.delete("/calendars/:id/members/:userId", requireAuth, async (req, res) => {
+  const calendarId = Number(req.params.id);
+  const targetUserId = Number(req.params.userId);
+
+  if (Number.isNaN(calendarId) || Number.isNaN(targetUserId)) {
+    return res.status(400).json({ error: "Invalid id" });
+  }
+
+  try {
+    const calendarResult = await pool.query(
+      "SELECT * FROM calendars WHERE id = $1",
+      [calendarId]
+    );
+
+    if (calendarResult.rows.length === 0) {
+      return res.status(404).json({ error: "Calendar not found" });
+    }
+
+    const calendar = calendarResult.rows[0];
+
+    if (calendar.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Only owner can remove members" });
+    }
+
+    const deleteResult = await pool.query(
+      "DELETE FROM calendar_shares WHERE calendar_id = $1 AND user_id = $2 RETURNING *",
+      [calendarId, targetUserId]
+    );
+
+    if (deleteResult.rows.length === 0) {
+      return res.status(404).json({ error: "Shared member not found" });
+    }
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
