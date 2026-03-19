@@ -85,7 +85,7 @@ function canWrite(role) {
 }
 
 function canDelete(role) {
-  return role === "owner";
+  return role === "owner" || role === "editor";
 }
 
 async function getEventById(eventId) {
@@ -423,6 +423,183 @@ app.get("/me", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /calendars: Create a calendar for the logged-in user
+app.post("/calendars", requireAuth, async (req, res) => {
+  const { name, description } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: "Calendar name is required" });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      INSERT INTO calendars (user_id, name, description)
+      VALUES ($1, $2, $3)
+      RETURNING *
+      `,
+      [req.user.id, name.trim(), description || null]
+    );
+
+    return res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /calendars: List calendars the user owns or that are shared with them
+app.get("/calendars", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT DISTINCT
+        c.id,
+        c.user_id,
+        c.name,
+        c.description,
+        c.created_at,
+        CASE
+          WHEN c.user_id = $1 THEN 'owner'
+          ELSE cs.permission
+        END AS role
+      FROM calendars c
+      LEFT JOIN calendar_shares cs
+        ON cs.calendar_id = c.id
+        AND cs.user_id = $1
+      WHERE c.user_id = $1
+         OR cs.user_id = $1
+      ORDER BY c.created_at ASC
+      `,
+      [req.user.id]
+    );
+
+    return res.status(200).json(result.rows);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /calendars/:id: Retrieve one calendar if the user has access
+app.get("/calendars/:id", requireAuth, async (req, res) => {
+  const calendarId = Number(req.params.id);
+
+  if (Number.isNaN(calendarId)) {
+    return res.status(400).json({ error: "Invalid calendar id" });
+  }
+
+  try {
+    const calendar = await getCalendarById(calendarId);
+
+    if (!calendar) {
+      return res.status(404).json({ error: "Calendar not found" });
+    }
+
+    const role = await getCalendarRole(req.user.id, calendarId);
+
+    if (!canRead(role)) {
+      return res.status(403).json({ error: "You do not have access to this calendar" });
+    }
+
+    return res.status(200).json({
+      ...calendar,
+      role
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PUT /calendars/:id: Only the owner can update calendar details
+app.put("/calendars/:id", requireAuth, async (req, res) => {
+  const calendarId = Number(req.params.id);
+
+  if (Number.isNaN(calendarId)) {
+    return res.status(400).json({ error: "Invalid calendar id" });
+  }
+
+  try {
+    const calendar = await getCalendarById(calendarId);
+
+    if (!calendar) {
+      return res.status(404).json({ error: "Calendar not found" });
+    }
+
+    if (calendar.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Only owner can update this calendar" });
+    }
+
+    const updatedName =
+      req.body.name !== undefined ? req.body.name.trim() : calendar.name;
+    const updatedDescription =
+      req.body.description !== undefined ? req.body.description : calendar.description;
+
+    if (!updatedName) {
+      return res.status(400).json({ error: "Calendar name cannot be empty" });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE calendars
+      SET name = $1,
+          description = $2
+      WHERE id = $3
+      RETURNING *
+      `,
+      [updatedName, updatedDescription, calendarId]
+    );
+
+    return res.status(200).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// DELETE /calendars/:id: Only the owner can delete a calendar
+app.delete("/calendars/:id", requireAuth, async (req, res) => {
+  const calendarId = Number(req.params.id);
+
+  if (Number.isNaN(calendarId)) {
+    return res.status(400).json({ error: "Invalid calendar id" });
+  }
+
+  try {
+    const calendar = await getCalendarById(calendarId);
+
+    if (!calendar) {
+      return res.status(404).json({ error: "Calendar not found" });
+    }
+
+    if (calendar.user_id !== req.user.id) {
+      return res.status(403).json({ error: "Only owner can delete this calendar" });
+    }
+
+    // Keep Redis eventCount accurate after cascading event deletes
+    const eventCountResult = await pool.query(
+      "SELECT COUNT(*)::int AS count FROM events WHERE calendar_id = $1",
+      [calendarId]
+    );
+    const deletedEventCount = eventCountResult.rows[0].count;
+
+    await pool.query("DELETE FROM calendars WHERE id = $1", [calendarId]);
+
+    if (deletedEventCount > 0) {
+      const currentValue = await redisClient.get("eventCount");
+      const currentCount = parseInt(currentValue || "0", 10);
+      const nextCount = Math.max(0, currentCount - deletedEventCount);
+      await redisClient.set("eventCount", nextCount);
+    }
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
