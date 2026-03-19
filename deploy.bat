@@ -1,9 +1,15 @@
-kubectl apply -f calendar-db-secret.yaml
-kubectl apply -f db-pvc.yaml
-kubectl apply -f postgres-init-configmap.yaml
-kubectl apply -f calendar-db-deployment.yaml
-kubectl apply -f calendar-db-service.yaml
-kubectl apply -f calendar-redis-deployment.yaml
-kubectl apply -f calendar-redis-service.yaml
-kubectl apply -f calendar-api-deployment.yaml
-kubectl apply -f calendar-api-service.yaml
+kubectl apply -f .\calendar-db-secret.yaml
+kubectl apply -f .\calendar-api-secret.yaml
+kubectl apply -f .\calendar-mail-secret.yaml
+
+kubectl apply -f .\db-pvc.yaml
+kubectl apply -f .\postgres-init-configmap.yaml
+
+kubectl apply -f .\calendar-db-deployment.yaml
+kubectl apply -f .\calendar-db-service.yaml
+
+kubectl apply -f .\calendar-redis-deployment.yaml
+kubectl apply -f .\calendar-redis-service.yaml
+
+kubectl apply -f .\calendar-api-deployment.yaml
+kubectl apply -f .\calendar-api-service.yaml

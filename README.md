@@ -216,7 +216,7 @@ Delete a pod:
 
 `kubectl delete pod `<pod-name>`{=html}`
 
-Apply Kuernetes resources: 
+Manually apply Kuernetes resources: 
 
 `kubectl apply -f calendar-db-secret.yaml`
 
