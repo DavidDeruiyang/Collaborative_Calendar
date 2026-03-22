@@ -22,7 +22,7 @@ event management with persistent storage. The system supports authenticated user
   - event updates
   - Event status tracking (scheduled, cancelled, completed)
   - Event participant assignment management
-  - Event participant assignment management
+  - Search functionality for events by keyword or participant email
 
 ## Tech Stack
 
