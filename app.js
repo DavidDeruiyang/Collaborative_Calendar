@@ -1,9 +1,15 @@
 const express = require("express");
+
 const http = require("http");
 const { Server } = require("socket.io");
 const { Pool } = require("pg");
 const { createClient } = require("redis");
 const app = express();
+// For serving frontend files
+app.use(express.static('frontend'));
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'frontend')));
+//
 const port = 3000;
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -754,6 +760,8 @@ app.get("/me", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
+
+
 
 // POST /calendars: Create a calendar for the logged-in user
 app.post("/calendars", requireAuth, async (req, res) => {

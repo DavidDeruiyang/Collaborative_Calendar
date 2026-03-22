@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Calendar App</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      margin: 0;
+      padding: 32px;
+      color: #111827;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    h1, h2 { margin: 0 0 14px 0; }
+
+    .status {
+      font-size: 14px;
+      color: #16a34a;
+      font-weight: 600;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    input, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .actions, .row-actions {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .create-btn {
+      background: #2563eb;
+      color: white;
+    }
+
+    .edit-btn {
+      background: #f59e0b;
+      color: white;
+    }
+
+    .delete-btn {
+      background: #dc2626;
+      color: white;
+    }
+
+    .secondary-btn {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .cancel-btn {
+      background: #6b7280;
+      color: white;
+    }
+
+    .message {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .message.success {
+      background: #dcfce7;
+      color: #166534;
+      display: block;
+    }
+
+    .message.error {
+      background: #fee2e2;
+      color: #991b1b;
+      display: block;
+    }
+
+    .message.warn {
+      background: #fef3c7;
+      color: #92400e;
+      display: block;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    li.upcoming {
+      border: 2px solid #2563eb;
+      background: #eff6ff;
+    }
+
+    .event-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .event-info {
+      color: #374151;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    .empty {
+      color: #6b7280;
+      padding: 8px 0;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="top-bar">
+        <div class="top-bar">
+          <h1>My Calendar</h1>
+          <button onclick="logout()">Logout</button>
+        </div>
+        <div class="status">Live updates enabled</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Search and Filter</div>
+
+      <div class="form-grid">
+        <input id="searchText" placeholder="Search by title..." oninput="loadEvents()">
+        <input id="filterDate" type="date" onchange="loadEvents()">
+      </div>
+
+      <div class="actions">
+        <button class="secondary-btn" onclick="clearFilters()">Clear Filters</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Create Event</div>
+
+      <div class="form-grid">
+        <input id="title" placeholder="Title">
+        <input id="location" placeholder="Location">
+        <input id="start_time" type="datetime-local">
+        <input id="end_time" type="datetime-local">
+      </div>
+
+      <div style="margin-top:12px;">
+        <textarea id="description" placeholder="Description"></textarea>
+      </div>
+
+      <div class="actions">
+        <button class="create-btn" onclick="createNewEvent()">Create Event</button>
+        <button class="secondary-btn" onclick="loadEvents()">Refresh</button>
+      </div>
+
+      <div id="message" class="message"></div>
+    </div>
+
+    <div id="editCard" class="card hidden">
+      <div class="section-label">Edit Event</div>
+
+      <input type="hidden" id="edit_id">
+
+      <div class="form-grid">
+        <input id="edit_title" placeholder="Title">
+        <input id="edit_location" placeholder="Location">
+        <input id="edit_start_time" type="datetime-local">
+        <input id="edit_end_time" type="datetime-local">
+      </div>
+
+      <div style="margin-top:12px;">
+        <textarea id="edit_description" placeholder="Description"></textarea>
+      </div>
+
+      <div class="actions">
+        <button class="edit-btn" onclick="saveEditEvent()">Save Changes</button>
+        <button class="cancel-btn" onclick="cancelEdit()">Cancel</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Events</div>
+      <ul id="events"></ul>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      window.location.href = "/login.html";
+    }
+    function logout() {
+      localStorage.removeItem("token");
+      window.location.href = "/login.html";
+    }
+    const calendarId = 1;
+    let allEvents = [];
+
+    const socket = io({
+      auth: { token: token }
+    });
+
+    socket.on("connect", () => {
+      socket.emit("join_calendar", calendarId);
+    });
+
+    socket.on("event_created", () => loadEvents());
+    socket.on("event_deleted", () => loadEvents());
+    socket.on("event_updated", () => loadEvents());
+
+    function showMessage(text, type = "success") {
+      const box = document.getElementById("message");
+      box.textContent = text;
+      box.className = `message ${type}`;
+      setTimeout(() => {
+        box.className = "message";
+        box.textContent = "";
+      }, 3000);
+    }
+
+    function formatTime(value) {
+      if (!value) return "No time";
+      return new Date(value).toLocaleString();
+    }
+
+    function toLocalInputValue(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    function escapeHtml(text) {
+      return (text || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function clearFilters() {
+      document.getElementById("searchText").value = "";
+      document.getElementById("filterDate").value = "";
+      loadEvents();
+    }
+
+    function isUpcoming(startTime) {
+      const now = new Date();
+      const start = new Date(startTime);
+      const diff = start - now;
+      return diff >= 0 && diff <= 24 * 60 * 60 * 1000;
+    }
+
+    function isInvalidTimeRange(startTime, endTime) {
+      return new Date(endTime) <= new Date(startTime);
+    }
+
+    function findOverlap(startTime, endTime, ignoreEventId = null) {
+      const newStart = new Date(startTime).getTime();
+      const newEnd = new Date(endTime).getTime();
+
+      return allEvents.find(event => {
+        if (ignoreEventId !== null && event.id === ignoreEventId) return false;
+
+        const existingStart = new Date(event.start_time).getTime();
+        const existingEnd = new Date(event.end_time).getTime();
+
+        return newStart < existingEnd && newEnd > existingStart;
+      });
+    }
+
+    function getFilteredEvents() {
+      const searchText = document.getElementById("searchText").value.trim().toLowerCase();
+      const filterDate = document.getElementById("filterDate").value;
+
+      return allEvents.filter(event => {
+        const matchTitle = event.title.toLowerCase().includes(searchText);
+
+        let matchDate = true;
+        if (filterDate) {
+          const eventDate = new Date(event.start_time);
+          const yyyy = eventDate.getFullYear();
+          const mm = String(eventDate.getMonth() + 1).padStart(2, "0");
+          const dd = String(eventDate.getDate()).padStart(2, "0");
+          const eventDateString = `${yyyy}-${mm}-${dd}`;
+          matchDate = eventDateString === filterDate;
+        }
+
+        return matchTitle && matchDate;
+      });
+    }
+
+    async function loadEvents() {
+      const res = await fetch("/events", {
+        headers: { "Authorization": "Bearer " + token }
+      });
+
+      const data = await res.json();
+      allEvents = Array.isArray(data) ? data : [];
+
+      const list = document.getElementById("events");
+      list.innerHTML = "";
+
+      const filteredEvents = getFilteredEvents();
+
+      if (filteredEvents.length === 0) {
+        list.innerHTML = `<li class="empty">No matching events.</li>`;
+        return;
+      }
+
+      filteredEvents.forEach(event => {
+        const li = document.createElement("li");
+        if (isUpcoming(event.start_time)) {
+          li.classList.add("upcoming");
+        }
+
+        li.innerHTML = `
+          <div class="event-title">${escapeHtml(event.title)}</div>
+          <div class="event-info">
+            <div><strong>Description:</strong> ${escapeHtml(event.description || "No description")}</div>
+            <div><strong>Location:</strong> ${escapeHtml(event.location || "No location")}</div>
+            <div><strong>Start:</strong> ${formatTime(event.start_time)}</div>
+            <div><strong>End:</strong> ${formatTime(event.end_time)}</div>
+            <div><strong>Status:</strong> ${escapeHtml(event.status || "scheduled")}</div>
+            ${isUpcoming(event.start_time) ? `<div><strong>Upcoming:</strong> Starts within 24 hours</div>` : ``}
+          </div>
+          <div class="row-actions">
+            <button class="edit-btn" onclick='startEditEvent(${JSON.stringify(JSON.stringify(event))})'>Edit</button>
+            <button class="delete-btn" onclick="deleteEvent(${event.id})">Delete</button>
+          </div>
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    async function createNewEvent() {
+      const title = document.getElementById("title").value.trim();
+      const description = document.getElementById("description").value.trim();
+      const location = document.getElementById("location").value.trim();
+      const startTime = document.getElementById("start_time").value;
+      const endTime = document.getElementById("end_time").value;
+
+      if (!title || !startTime || !endTime) {
+        showMessage("Title, start time, and end time are required.", "error");
+        return;
+      }
+
+      if (isInvalidTimeRange(startTime, endTime)) {
+        showMessage("End time must be later than start time.", "error");
+        return;
+      }
+
+      const overlap = findOverlap(startTime, endTime);
+      if (overlap) {
+        showMessage(`Time overlap with: ${overlap.title}`, "warn");
+        return;
+      }
+
+      const res = await fetch("/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({
+          calendar_id: calendarId,
+          title,
+          description,
+          location,
+          start_time: new Date(startTime).toISOString(),
+          end_time: new Date(endTime).toISOString()
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        showMessage(err.error || "Failed to create event.", "error");
+        return;
+      }
+
+      document.getElementById("title").value = "";
+      document.getElementById("description").value = "";
+      document.getElementById("location").value = "";
+      document.getElementById("start_time").value = "";
+      document.getElementById("end_time").value = "";
+
+      showMessage("Event created.");
+      loadEvents();
+    }
+
+    async function deleteEvent(eventId) {
+      const confirmed = confirm("Delete this event?");
+      if (!confirmed) return;
+
+      const res = await fetch(`/events/${eventId}`, {
+        method: "DELETE",
+        headers: { "Authorization": "Bearer " + token }
+      });
+
+      if (!res.ok) {
+        showMessage("Failed to delete event.", "error");
+        return;
+      }
+
+      showMessage("Event deleted.");
+      loadEvents();
+    }
+
+    function startEditEvent(eventJson) {
+      const event = JSON.parse(eventJson);
+
+      document.getElementById("edit_id").value = event.id;
+      document.getElementById("edit_title").value = event.title || "";
+      document.getElementById("edit_description").value = event.description || "";
+      document.getElementById("edit_location").value = event.location || "";
+      document.getElementById("edit_start_time").value = toLocalInputValue(event.start_time);
+      document.getElementById("edit_end_time").value = toLocalInputValue(event.end_time);
+
+      document.getElementById("editCard").classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function cancelEdit() {
+      document.getElementById("editCard").classList.add("hidden");
+      document.getElementById("edit_id").value = "";
+      document.getElementById("edit_title").value = "";
+      document.getElementById("edit_description").value = "";
+      document.getElementById("edit_location").value = "";
+      document.getElementById("edit_start_time").value = "";
+      document.getElementById("edit_end_time").value = "";
+    }
+
+    async function saveEditEvent() {
+      const id = Number(document.getElementById("edit_id").value);
+      const title = document.getElementById("edit_title").value.trim();
+      const description = document.getElementById("edit_description").value.trim();
+      const location = document.getElementById("edit_location").value.trim();
+      const startTime = document.getElementById("edit_start_time").value;
+      const endTime = document.getElementById("edit_end_time").value;
+
+      if (!title || !startTime || !endTime) {
+        showMessage("Title, start time, and end time are required.", "error");
+        return;
+      }
+
+      if (isInvalidTimeRange(startTime, endTime)) {
+        showMessage("End time must be later than start time.", "error");
+        return;
+      }
+
+      const overlap = findOverlap(startTime, endTime, id);
+      if (overlap) {
+        showMessage(`Time overlap with: ${overlap.title}`, "warn");
+        return;
+      }
+
+      const res = await fetch(`/events/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({
+          title,
+          description,
+          location,
+          start_time: new Date(startTime).toISOString(),
+          end_time: new Date(endTime).toISOString()
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        showMessage(err.error || "Failed to update event.", "error");
+        return;
+      }
+
+      cancelEdit();
+      showMessage("Event updated.");
+      loadEvents();
+    }
+
+    loadEvents();
+  </script>
+</body>
+</html>
