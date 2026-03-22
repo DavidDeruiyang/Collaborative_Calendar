@@ -323,7 +323,7 @@ io.on("connection", (socket) => {
 
 // POST /events: Create a new event
 app.post("/events", requireAuth, async (req, res) => {
-  const { calendar_id, title, description, start_time, end_time, location } = req.body;
+  const { calendar_id, title, description, start_time, end_time, location, status } = req.body;
 
   if (!calendar_id || !title || !start_time || !end_time) {
     return res.status(400).json({
@@ -350,11 +350,11 @@ app.post("/events", requireAuth, async (req, res) => {
 
     const result = await pool.query(
       `
-      INSERT INTO events (calendar_id, title, description, start_time, end_time, location)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO events (calendar_id, title, description, start_time, end_time, location, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
       `,
-      [calendarId, title, description || null, start_time, end_time, location || null]
+      [calendarId, title, description || null, start_time, end_time, location || null, status || "scheduled"]
     );
 
     await redisClient.incr("eventCount");
@@ -398,6 +398,42 @@ app.get("/events", requireAuth, async (req, res) => {
       ORDER BY e.start_time ASC
       `,
       [req.user.id]
+    );
+
+    return res.status(200).json(result.rows);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Search Events API
+app.get("/events/search", requireAuth, async (req, res) => {
+  const { q } = req.query;
+
+  if (!q) {
+    return res.status(400).json({ error: "Query parameter q is required" });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT DISTINCT e.*
+      FROM events e
+      JOIN calendars c ON e.calendar_id = c.id
+      LEFT JOIN calendar_shares cs
+        ON cs.calendar_id = c.id
+      LEFT JOIN event_participants ep
+        ON ep.event_id = e.id
+      LEFT JOIN users u
+        ON u.id = ep.user_id
+      WHERE (e.title ILIKE $1
+             OR e.description ILIKE $1
+             OR u.email ILIKE $1)
+        AND (c.user_id = $2 OR cs.user_id = $2)
+      ORDER BY e.start_time ASC
+      `,
+      [`%${q}%`, req.user.id]
     );
 
     return res.status(200).json(result.rows);
@@ -462,6 +498,7 @@ app.put("/events/:id", requireAuth, async (req, res) => {
       start_time: req.body.start_time !== undefined ? req.body.start_time : existingEvent.start_time,
       end_time: req.body.end_time !== undefined ? req.body.end_time : existingEvent.end_time,
       location: req.body.location !== undefined ? req.body.location : existingEvent.location,
+      status: req.body.status !== undefined ? req.body.status : existingEvent.status,
     };
 
     const updateResult = await pool.query(
@@ -471,8 +508,9 @@ app.put("/events/:id", requireAuth, async (req, res) => {
           description = $2,
           start_time = $3,
           end_time = $4,
-          location = $5
-      WHERE id = $6
+          location = $5,
+          status = $6
+      WHERE id = $7
       RETURNING *
       `,
       [
@@ -481,6 +519,7 @@ app.put("/events/:id", requireAuth, async (req, res) => {
         updatedData.start_time,
         updatedData.end_time,
         updatedData.location,
+        updatedData.status,
         id
       ]
     );
@@ -539,6 +578,68 @@ app.delete("/events/:id", requireAuth, async (req, res) => {
     await redisClient.decr("eventCount");
 
     io.to(`calendar:${existingEvent.calendar_id}`).emit("event_deleted", deletedEventPayload);
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Add participant to event
+app.post("/events/:id/participants", requireAuth, async (req, res) => {
+  const eventId = Number(req.params.id);
+  const { user_id } = req.body;
+
+  if (Number.isNaN(eventId) || !user_id) {
+    return res.status(400).json({ error: "Invalid event id or user_id" });
+  }
+
+  try {
+    const event = await getEventById(eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const role = await getCalendarRole(req.user.id, event.calendar_id);
+    if (!canWrite(role)) {
+      return res.status(403).json({ error: "No permission" });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO event_participants (event_id, user_id)
+       VALUES ($1, $2)
+       RETURNING *`,
+      [eventId, user_id]
+    );
+
+    return res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Remove participant from event
+app.delete("/events/:id/participants/:userId", requireAuth, async (req, res) => {
+  const eventId = Number(req.params.id);
+  const userId = Number(req.params.userId);
+
+  if (Number.isNaN(eventId) || Number.isNaN(userId)) {
+    return res.status(400).json({ error: "Invalid id" });
+  }
+
+  try {
+    const event = await getEventById(eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const role = await getCalendarRole(req.user.id, event.calendar_id);
+    if (!canWrite(role)) {
+      return res.status(403).json({ error: "No permission" });
+    }
+
+    await pool.query(
+      "DELETE FROM event_participants WHERE event_id = $1 AND user_id = $2",
+      [eventId, userId]
+    );
 
     return res.status(204).send();
   } catch (err) {
