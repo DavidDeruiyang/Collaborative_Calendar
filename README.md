@@ -20,6 +20,9 @@ event management with persistent storage. The system supports authenticated user
   - calendar sharing
   - event creation
   - event updates
+  - Event status tracking (scheduled, cancelled, completed)
+  - Event participant assignment management
+  - Event participant assignment management
 
 ## Tech Stack
 
@@ -85,6 +88,9 @@ event management with persistent storage. The system supports authenticated user
 - `GET /events/:id`
 - `PUT /events/:id`
 - `DELETE /events/:id`
+- `GET /events/search?q=keyword`
+- `POST /events/:id/participants`
+- `DELETE /events/:id/participants/:userId`
 
 ### Stats
 - `GET /stats`
