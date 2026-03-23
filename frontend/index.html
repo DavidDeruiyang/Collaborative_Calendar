@@ -49,12 +49,13 @@
       margin-top: 12px;
     }
 
-    input, textarea {
+    input, textarea, select {
       width: 100%;
       padding: 10px 12px;
       border: 1px solid #d1d5db;
       border-radius: 10px;
       font-size: 14px;
+      background: white;
     }
 
     textarea {
@@ -183,11 +184,11 @@
   <div class="container">
     <div class="card">
       <div class="top-bar">
-        <div class="top-bar">
-          <h1>My Calendar</h1>
-          <button onclick="logout()">Logout</button>
+        <h1>My Calendar</h1>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <div id="calendarName" class="status">Loading calendar...</div>
+          <button class="secondary-btn" onclick="logout()">Logout</button>
         </div>
-        <div class="status">Live updates enabled</div>
       </div>
     </div>
 
@@ -195,8 +196,8 @@
       <div class="section-label">Search and Filter</div>
 
       <div class="form-grid">
-        <input id="searchText" placeholder="Search by title..." oninput="loadEvents()">
-        <input id="filterDate" type="date" onchange="loadEvents()">
+        <input id="searchText" placeholder="Search by title..." oninput="renderEvents()">
+        <input id="filterDate" type="date" onchange="renderEvents()">
       </div>
 
       <div class="actions">
@@ -220,10 +221,30 @@
 
       <div class="actions">
         <button class="create-btn" onclick="createNewEvent()">Create Event</button>
-        <button class="secondary-btn" onclick="loadEvents()">Refresh</button>
+        <button class="secondary-btn" onclick="loadEvents()">Refresh Events</button>
       </div>
 
       <div id="message" class="message"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Share Calendar</div>
+      
+      <div class="form-grid">
+        <input id="share_email" type="email" placeholder="User email">
+        <select id="share_permission">
+          <option value="viewer">viewer</option>
+          <option value="editor">editor</option>
+        </select>
+      <div id="shareMessage" class="message"></div>
+      </div>
+
+      <div class="actions">
+        <button class="create-btn" onclick="shareCalendar()">Share Calendar</button>
+        <button class="secondary-btn" onclick="loadMembers()">Refresh Members</button>
+      </div>
+
+      <ul id="members" style="margin-top:12px;"></ul>
     </div>
 
     <div id="editCard" class="card hidden">
@@ -261,27 +282,20 @@
     if (!token) {
       window.location.href = "/login.html";
     }
+
+    let calendarId = null;
+    let currentCalendarName = "";
+    let allEvents = [];
+    let socket = null;
+    let currentRole = null;
+
     function logout() {
       localStorage.removeItem("token");
       window.location.href = "/login.html";
     }
-    const calendarId = 1;
-    let allEvents = [];
-
-    const socket = io({
-      auth: { token: token }
-    });
-
-    socket.on("connect", () => {
-      socket.emit("join_calendar", calendarId);
-    });
-
-    socket.on("event_created", () => loadEvents());
-    socket.on("event_deleted", () => loadEvents());
-    socket.on("event_updated", () => loadEvents());
-
-    function showMessage(text, type = "success") {
-      const box = document.getElementById("message");
+    
+    function showMessage(targetId, text, type = "success") {
+      const box = document.getElementById(targetId);
       box.textContent = text;
       box.className = `message ${type}`;
       setTimeout(() => {
@@ -314,7 +328,7 @@
     function clearFilters() {
       document.getElementById("searchText").value = "";
       document.getElementById("filterDate").value = "";
-      loadEvents();
+      renderEvents();
     }
 
     function isUpcoming(startTime) {
@@ -347,7 +361,7 @@
       const filterDate = document.getElementById("filterDate").value;
 
       return allEvents.filter(event => {
-        const matchTitle = event.title.toLowerCase().includes(searchText);
+        const matchTitle = (event.title || "").toLowerCase().includes(searchText);
 
         let matchDate = true;
         if (filterDate) {
@@ -363,14 +377,99 @@
       });
     }
 
+    function canEditCalendar() {
+      return currentRole === "owner" || currentRole === "editor";
+    }
+
+    function canManageMembers() {
+      return currentRole === "owner";
+    }
+
+    async function ensureCalendar() {
+      const res = await fetch("/calendars", {
+        headers: {
+          "Authorization": "Bearer " + token
+        }
+      });
+
+      const calendars = await res.json();
+
+      if (!res.ok) {
+        throw new Error(calendars.error || "Failed to load calendars");
+      }
+
+      if (Array.isArray(calendars) && calendars.length > 0) {
+        const writableCalendar = calendars.find(c => c.role === "owner" || c.role === "editor");
+        const readableCalendar = calendars[0];
+        const chosenCalendar = writableCalendar || readableCalendar;
+
+        if (chosenCalendar) {
+          calendarId = chosenCalendar.id;
+          currentRole = chosenCalendar.role;
+          currentCalendarName = chosenCalendar.name || "My Calendar";
+          document.getElementById("calendarName").textContent =
+            `Using: ${currentCalendarName} (${currentRole})`;
+          return;
+        }
+      }
+
+      const createRes = await fetch("/calendars", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({
+          name: "My Calendar",
+          description: "Auto-created calendar"
+        })
+      });
+
+      const newCalendar = await createRes.json();
+
+      if (!createRes.ok) {
+        throw new Error(newCalendar.error || "Failed to create calendar");
+      }
+
+      calendarId = newCalendar.id;
+      currentRole = "owner";
+      currentCalendarName = newCalendar.name || "My Calendar";
+      document.getElementById("calendarName").textContent =
+        `Using: ${currentCalendarName} (${currentRole})`;
+    }
+
+    function connectSocket() {
+      socket = io({
+        auth: { token: token }
+      });
+
+      socket.on("connect", () => {
+        socket.emit("join_calendar", calendarId);
+      });
+
+      socket.on("event_created", () => loadEvents());
+      socket.on("event_deleted", () => loadEvents());
+      socket.on("event_updated", () => loadEvents());
+    }
+
     async function loadEvents() {
+      if (!calendarId) return;
+
       const res = await fetch("/events", {
-        headers: { "Authorization": "Bearer " + token }
+        headers: {
+          "Authorization": "Bearer " + token
+        }
       });
 
       const data = await res.json();
-      allEvents = Array.isArray(data) ? data : [];
+      allEvents = Array.isArray(data)
+        ? data.filter(event => event.calendar_id === calendarId)
+        : [];
 
+      renderEvents();
+    }
+
+    function renderEvents() {
       const list = document.getElementById("events");
       list.innerHTML = "";
 
@@ -387,6 +486,8 @@
           li.classList.add("upcoming");
         }
 
+        const canEdit = canEditCalendar();
+
         li.innerHTML = `
           <div class="event-title">${escapeHtml(event.title)}</div>
           <div class="event-info">
@@ -398,8 +499,8 @@
             ${isUpcoming(event.start_time) ? `<div><strong>Upcoming:</strong> Starts within 24 hours</div>` : ``}
           </div>
           <div class="row-actions">
-            <button class="edit-btn" onclick='startEditEvent(${JSON.stringify(JSON.stringify(event))})'>Edit</button>
-            <button class="delete-btn" onclick="deleteEvent(${event.id})">Delete</button>
+            ${canEdit ? `<button class="edit-btn" onclick='startEditEvent(${JSON.stringify(JSON.stringify(event))})'>Edit</button>` : ``}
+            ${canEdit ? `<button class="delete-btn" onclick="deleteEvent(${event.id})">Delete</button>` : ``}
           </div>
         `;
         list.appendChild(li);
@@ -407,6 +508,16 @@
     }
 
     async function createNewEvent() {
+      if (!calendarId) {
+        showMessage("Calendar is not ready yet.", "error");
+        return;
+      }
+
+      if (!canEditCalendar()) {
+        showMessage("You do not have permission to create events.", "error");
+        return;
+      }
+
       const title = document.getElementById("title").value.trim();
       const description = document.getElementById("description").value.trim();
       const location = document.getElementById("location").value.trim();
@@ -414,7 +525,7 @@
       const endTime = document.getElementById("end_time").value;
 
       if (!title || !startTime || !endTime) {
-        showMessage("Title, start time, and end time are required.", "error");
+        showMessage("eventMessage", "Title, start time, and end time are required.", "error");
         return;
       }
 
@@ -429,25 +540,28 @@
         return;
       }
 
+      const payload = {
+        calendar_id: calendarId,
+        title,
+        description,
+        location,
+        start_time: new Date(startTime).toISOString(),
+        end_time: new Date(endTime).toISOString()
+      };
+
       const res = await fetch("/events", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer " + token
         },
-        body: JSON.stringify({
-          calendar_id: calendarId,
-          title,
-          description,
-          location,
-          start_time: new Date(startTime).toISOString(),
-          end_time: new Date(endTime).toISOString()
-        })
+        body: JSON.stringify(payload)
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const err = await res.json();
-        showMessage(err.error || "Failed to create event.", "error");
+        showMessage(data.error || "Failed to create event.", "error");
         return;
       }
 
@@ -457,17 +571,24 @@
       document.getElementById("start_time").value = "";
       document.getElementById("end_time").value = "";
 
-      showMessage("Event created.");
+      showMessage("eventMessage", "Event created.");
       loadEvents();
     }
 
     async function deleteEvent(eventId) {
+      if (!canEditCalendar()) {
+        showMessage("You do not have permission to delete events.", "error");
+        return;
+      }
+
       const confirmed = confirm("Delete this event?");
       if (!confirmed) return;
 
       const res = await fetch(`/events/${eventId}`, {
         method: "DELETE",
-        headers: { "Authorization": "Bearer " + token }
+        headers: {
+          "Authorization": "Bearer " + token
+        }
       });
 
       if (!res.ok) {
@@ -480,6 +601,11 @@
     }
 
     function startEditEvent(eventJson) {
+      if (!canEditCalendar()) {
+        showMessage("You do not have permission to edit events.", "error");
+        return;
+      }
+
       const event = JSON.parse(eventJson);
 
       document.getElementById("edit_id").value = event.id;
@@ -504,6 +630,11 @@
     }
 
     async function saveEditEvent() {
+      if (!canEditCalendar()) {
+        showMessage("You do not have permission to update events.", "error");
+        return;
+      }
+
       const id = Number(document.getElementById("edit_id").value);
       const title = document.getElementById("edit_title").value.trim();
       const description = document.getElementById("edit_description").value.trim();
@@ -512,7 +643,7 @@
       const endTime = document.getElementById("edit_end_time").value;
 
       if (!title || !startTime || !endTime) {
-        showMessage("Title, start time, and end time are required.", "error");
+        showMessage("eventMessage", "Title, start time, and end time are required.", "error");
         return;
       }
 
@@ -542,9 +673,10 @@
         })
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const err = await res.json();
-        showMessage(err.error || "Failed to update event.", "error");
+        showMessage(data.error || "Failed to update event.", "error");
         return;
       }
 
@@ -553,7 +685,171 @@
       loadEvents();
     }
 
-    loadEvents();
+    async function shareCalendar() {
+      if (!calendarId) {
+        showMessage("Calendar is not ready yet.", "error");
+        return;
+      }
+
+      if (!canManageMembers()) {
+        showMessage("Only the owner can share this calendar.", "error");
+        return;
+      }
+
+      const userEmail = document.getElementById("share_email").value.trim();
+      const permission = document.getElementById("share_permission").value;
+
+      if (!userEmail) {
+        showMessage("shareMessage", "User email is required.", "error");
+        return;
+      }
+
+      const res = await fetch(`/calendars/${calendarId}/share`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({
+          user_email: userEmail,
+          permission
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showMessage(data.error || "Failed to share calendar.", "error");
+        return;
+      }
+
+      document.getElementById("share_email").value = "";
+      document.getElementById("share_permission").value = "viewer";
+
+      showMessage("shareMessage", "Calendar shared successfully.");
+      loadMembers();
+    }
+
+    async function loadMembers() {
+      if (!calendarId) return;
+
+      const list = document.getElementById("members");
+      list.innerHTML = "";
+
+      const res = await fetch(`/calendars/${calendarId}/members`, {
+        headers: {
+          "Authorization": "Bearer " + token
+        }
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        list.innerHTML = `<li class="empty">Unable to load members.</li>`;
+        return;
+      }
+
+      const ownerItem = document.createElement("li");
+      ownerItem.innerHTML = `
+        <div class="event-title">Owner</div>
+        <div class="event-info">
+          <div><strong>Owner ID:</strong> ${data.owner_id}</div>
+        </div>
+      `;
+      list.appendChild(ownerItem);
+
+      if (!data.shared_members || data.shared_members.length === 0) {
+        const empty = document.createElement("li");
+        empty.className = "empty";
+        empty.textContent = "No shared members yet.";
+        list.appendChild(empty);
+        return;
+      }
+
+      data.shared_members.forEach(member => {
+        const canManage = canManageMembers();
+
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <div class="event-title">${escapeHtml(member.name || "Unnamed User")}</div>
+          <div class="event-info">
+            <div><strong>Email:</strong> ${escapeHtml(member.email)}</div>
+            <div><strong>Permission:</strong> ${escapeHtml(member.permission)}</div>
+          </div>
+          <div class="row-actions">
+            ${canManage ? `<button class="secondary-btn" onclick="updateMemberPermission(${member.id}, 'viewer')">Set Viewer</button>` : ``}
+            ${canManage ? `<button class="secondary-btn" onclick="updateMemberPermission(${member.id}, 'editor')">Set Editor</button>` : ``}
+            ${canManage ? `<button class="delete-btn" onclick="removeMember(${member.id})">Remove</button>` : ``}
+          </div>
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    async function updateMemberPermission(userId, permission) {
+      if (!canManageMembers()) {
+        showMessage("Only the owner can update member roles.", "error");
+        return;
+      }
+
+      const res = await fetch(`/calendars/${calendarId}/members/${userId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({ permission })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        showMessage(data.error || "Failed to update permission.", "error");
+        return;
+      }
+
+      showMessage("Member permission updated.");
+      loadMembers();
+    }
+
+    async function removeMember(userId) {
+      if (!canManageMembers()) {
+        showMessage("Only the owner can remove members.", "error");
+        return;
+      }
+
+      const confirmed = confirm("Remove this member?");
+      if (!confirmed) return;
+
+      const res = await fetch(`/calendars/${calendarId}/members/${userId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": "Bearer " + token
+        }
+      });
+
+      if (!res.ok) {
+        showMessage("Failed to remove member.", "error");
+        return;
+      }
+
+      showMessage("Member removed.");
+      loadMembers();
+    }
+
+    async function initPage() {
+      try {
+        await ensureCalendar();
+        connectSocket();
+        await loadEvents();
+        await loadMembers();
+      } catch (err) {
+        console.error(err);
+        showMessage(err.message || "Initialization failed.", "error");
+      }
+    }
+
+    initPage();
   </script>
 </body>
 </html>

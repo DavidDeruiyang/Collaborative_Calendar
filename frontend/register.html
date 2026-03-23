@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Login</title>
+  <title>Register</title>
   <style>
     * { box-sizing: border-box; }
 
@@ -76,22 +76,33 @@
       font-size: 13px;
       text-align: center;
     }
+
+    a {
+      color: #2563eb;
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>Login</h1>
+    <h1>Register</h1>
 
+    <input id="name" placeholder="Name">
     <input id="email" type="email" placeholder="Email">
-    <input id="password" type="password" placeholder="Password">
 
-    <button onclick="login()">Login</button>
+    <input id="password" type="password" placeholder="Password">
+    <input id="confirm_password" type="password" placeholder="Confirm Password">
+
+    <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:12px;">
+    <input type="checkbox" onclick="togglePassword()"> Show Password
+    </label>
+    <button onclick="register()">Register</button>
 
     <div id="message" class="message"></div>
 
     <div class="hint">
-      Use the account you already created in Postman.<br>
-      No account yet? <a href="/register.html">Register</a>
+      Already have an account?
+      <a href="/login.html">Login</a>
     </div>
   </div>
 
@@ -101,33 +112,53 @@
       box.textContent = text;
       box.className = `message ${type}`;
     }
+    function togglePassword() {
+        const pwd = document.getElementById("password");
+        const confirm = document.getElementById("confirm_password");
 
-    async function login() {
+        const type = pwd.type === "password" ? "text" : "password";
+        pwd.type = type;
+        confirm.type = type;
+    }
+
+    async function register() {
+      const name = document.getElementById("name").value.trim();
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value.trim();
+      const confirmPassword = document.getElementById("confirm_password").value.trim();
 
-      if (!email || !password) {
-        showMessage("Email and password are required.", "error");
+      if (!name || !email || !password || !confirmPassword) {
+        showMessage("All fields are required.", "error");
         return;
       }
 
-      const res = await fetch("/auth/login", {
+      if (password !== confirmPassword) {
+        showMessage("Passwords do not match.", "error");
+        return;
+      } 
+
+      if (!name || !email || !password) {
+        showMessage("Name, email, and password are required.", "error");
+        return;
+      }
+
+      const res = await fetch("/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ name, email, password })
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        showMessage(data.error || "Login failed.", "error");
+        showMessage(data.error || "Registration failed.", "error");
         return;
       }
 
       localStorage.setItem("token", data.token);
-      showMessage("Login successful.", "success");
+      showMessage("Registration successful.", "success");
 
       setTimeout(() => {
         window.location.href = "/index.html";
