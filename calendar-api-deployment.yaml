@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: calendar-api
-          image: pcdelight/calendar-api:v1
+          image: pcdelight/calendar-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
