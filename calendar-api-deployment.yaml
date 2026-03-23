@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: calendar-api-deployment
+  name: calendar-api
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: calendar-api
@@ -14,8 +14,8 @@ spec:
     spec:
       containers:
         - name: calendar-api
-          image: nodejs-image-v1
-          imagePullPolicy: Never
+          image: pcdelight/calendar-api:v1
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           env:
