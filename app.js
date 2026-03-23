@@ -191,6 +191,28 @@ function canDelete(role) {
   return role === "owner" || role === "editor";
 }
 
+async function getCalendarById(calendarId) {
+  const result = await pool.query(
+    `
+    SELECT
+      id,
+      user_id,
+      name,
+      description,
+      created_at
+    FROM calendars
+    WHERE id = $1
+    `,
+    [calendarId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return result.rows[0];
+}
+
 async function getEventById(eventId) {
   const result = await pool.query(
     `
