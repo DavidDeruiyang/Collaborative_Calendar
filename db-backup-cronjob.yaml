@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backup-spaces-secret
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: "YOUR_DO_SPACES_KEY"
+  AWS_SECRET_ACCESS_KEY: "YOUR_DO_SPACES_SECRET"
+  AWS_DEFAULT_REGION: "us-east-1"
+  SPACES_ENDPOINT: "https://nyc3.digitaloceanspaces.com"
+  SPACES_BUCKET: "YOUR_BUCKET_NAME"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup-cronjob
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: postgres-backup
+              image: postgres:17
+              env:
+                - name: DB_HOST
+                  value: "calendar-db-service"
+                - name: DB_PORT
+                  value: "5432"
+                - name: DB_USER
+                  value: "user"
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: calendar-db-secret
+                      key: db-password
+                - name: DB_NAME
+                  value: "calendardb"
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-spaces-secret
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-spaces-secret
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: AWS_DEFAULT_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-spaces-secret
+                      key: AWS_DEFAULT_REGION
+                - name: SPACES_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-spaces-secret
+                      key: SPACES_ENDPOINT
+                - name: SPACES_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-spaces-secret
+                      key: SPACES_BUCKET
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  apt-get update && apt-get install -y awscli && rm -rf /var/lib/apt/lists/*
+                  TIMESTAMP=$(date +%Y-%m-%d-%H-%M-%S)
+                  FILE="calendar-backup-${TIMESTAMP}.sql"
+                  export PGPASSWORD="$DB_PASSWORD"
+                  pg_dump \
+                    -h "$DB_HOST" \
+                    -p "$DB_PORT" \
+                    -U "$DB_USER" \
+                    -d "$DB_NAME" \
+                    > "/tmp/$FILE"
+                  aws s3 cp "/tmp/$FILE" "s3://$SPACES_BUCKET/$FILE" --endpoint-url "$SPACES_ENDPOINT"
