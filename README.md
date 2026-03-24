@@ -1,5 +1,7 @@
 # Collaborative Calendar (Kubernetes Edition)
 
+## DigitalOcean External IP: http://146.190.188.75
+
 A cloud-native collaborative calendar platform that supports shared
 event management with persistent storage. The system supports authenticated users, role-based calendar sharing, protected event management, real-time collaboration, and email notifications. The system runs as a containerized **Node.js API** deployed on **Kubernetes using Minikube**, with **PostgreSQL 17** as the database and **Redis** for caching.
 
