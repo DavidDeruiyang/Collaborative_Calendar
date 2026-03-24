@@ -178,6 +178,48 @@
       letter-spacing: 0.04em;
       margin-bottom: 10px;
     }
+
+    .participant-box {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .participant-title {
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #374151;
+    }
+
+    .participant-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      padding: 8px 10px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+    }
+
+    .participant-add {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .participant-add input {
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .small-note {
+      font-size: 13px;
+      color: #6b7280;
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
@@ -312,6 +354,17 @@
       }, 3000);
     }
 
+    function showParticipantMessage(eventId, text, type = "success") {
+      const box = document.getElementById(`participantMessage-${eventId}`);
+      if (!box) return;
+      box.textContent = text;
+      box.className = `message ${type}`;
+      setTimeout(() => {
+        box.className = "message";
+        box.textContent = "";
+      }, 3000);
+    }
+
     function formatTime(value) {
       if (!value) return "No time";
       return new Date(value).toLocaleString();
@@ -393,6 +446,15 @@
       return currentRole === "owner";
     }
 
+    function getDisplayStatus(event) {
+      if (event.status === "cancelled") return "cancelled";
+
+      const now = new Date();
+      const end = new Date(event.end_time);
+
+      return now < end ? "scheduled" : "completed";
+    }
+
     async function ensureCalendar() {
       const res = await fetch("/calendars", {
         headers: {
@@ -433,6 +495,93 @@
       socket.on("event_created", () => loadEvents());
       socket.on("event_deleted", () => loadEvents());
       socket.on("event_updated", () => loadEvents());
+    }
+
+    async function loadParticipants(eventId) {
+      const box = document.getElementById(`participants-${eventId}`);
+      if (!box) return;
+
+      const res = await fetch(`/events/${eventId}/participants`, {
+        headers: {
+          "Authorization": "Bearer " + token
+        }
+      });
+
+      const data = await res.json().catch(() => []);
+
+      if (!res.ok) {
+        box.innerHTML = `<div class="small-note">Failed to load participants.</div>`;
+        return;
+      }
+
+      if (!Array.isArray(data) || data.length === 0) {
+        box.innerHTML = `<div class="small-note">No participants yet.</div>`;
+        return;
+      }
+
+      box.innerHTML = data.map(p => `
+        <div class="participant-item">
+          <div>${escapeHtml(p.name || "Unnamed User")} (${escapeHtml(p.email || "")})</div>
+          ${canEditCalendar() ? `<button class="delete-btn" onclick="removeParticipant(${eventId}, ${p.id})">Remove</button>` : ``}
+        </div>
+      `).join("");
+    }
+
+    async function addParticipant(eventId) {
+      if (!canEditCalendar()) {
+        showParticipantMessage(eventId, "You do not have permission to add participants.", "error");
+        return;
+      }
+
+      const input = document.getElementById(`add-${eventId}`);
+      const email = input.value.trim();
+
+      if (!email) {
+        showParticipantMessage(eventId, "User email is required.", "error");
+        return;
+      }
+
+      const res = await fetch(`/events/${eventId}/participants`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({ email })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        showParticipantMessage(eventId, data.error || "Failed to add participant.", "error");
+        return;
+      }
+
+      input.value = "";
+      showParticipantMessage(eventId, "Participant added.");
+      loadParticipants(eventId);
+    }
+
+    async function removeParticipant(eventId, userId) {
+      if (!canEditCalendar()) {
+        showParticipantMessage(eventId, "You do not have permission to remove participants.", "error");
+        return;
+      }
+
+      const res = await fetch(`/events/${eventId}/participants/${userId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": "Bearer " + token
+        }
+      });
+
+      if (!res.ok) {
+        showParticipantMessage(eventId, "Failed to remove participant.", "error");
+        return;
+      }
+
+      showParticipantMessage(eventId, "Participant removed.");
+      loadParticipants(eventId);
     }
 
     async function loadEvents() {
@@ -478,15 +627,30 @@
             <div><strong>Location:</strong> ${escapeHtml(event.location || "No location")}</div>
             <div><strong>Start:</strong> ${formatTime(event.start_time)}</div>
             <div><strong>End:</strong> ${formatTime(event.end_time)}</div>
-            <div><strong>Status:</strong> ${escapeHtml(event.status || "scheduled")}</div>
+            <div><strong>Status:</strong> ${escapeHtml(getDisplayStatus(event))}</div>
             ${isUpcoming(event.start_time) ? `<div><strong>Upcoming:</strong> Starts within 24 hours</div>` : ``}
           </div>
+
+          <div class="participant-box">
+            <div class="participant-title">Participants</div>
+            <div id="participants-${event.id}"><div class="small-note">Loading participants...</div></div>
+            <div id="participantMessage-${event.id}" class="message"></div>
+            ${canEdit ? `
+              <div class="participant-add">
+                <input id="add-${event.id}" placeholder="User email">
+                <button class="secondary-btn" onclick="addParticipant(${event.id})">Add Participant</button>
+              </div>
+            ` : ``}
+          </div>
+
           <div class="row-actions">
             ${canEdit ? `<button class="edit-btn" onclick='startEditEvent(${JSON.stringify(JSON.stringify(event))})'>Edit</button>` : ``}
             ${canEdit ? `<button class="delete-btn" onclick="deleteEvent(${event.id})">Delete</button>` : ``}
           </div>
         `;
         list.appendChild(li);
+
+        loadParticipants(event.id);
       });
     }
 

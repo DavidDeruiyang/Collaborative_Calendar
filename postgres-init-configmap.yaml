@@ -10,7 +10,8 @@ data:
         email VARCHAR(100) UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         global_role VARCHAR(20) NOT NULL DEFAULT 'member',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        profile_picture TEXT
     );
 
     CREATE TABLE IF NOT EXISTS calendars (

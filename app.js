@@ -27,7 +27,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
 const nodemailer = require("nodemailer");
 
 // Middleware to parse JSON request bodies
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 // PostgreSQL connection
 const pool = new Pool({
@@ -499,6 +499,41 @@ app.get("/events/:id", requireAuth, async (req, res) => {
   }
 });
 
+
+// GET participants of an event
+app.get("/events/:id/participants", requireAuth, async (req, res) => {
+  const eventId = Number(req.params.id);
+
+  if (Number.isNaN(eventId)) {
+    return res.status(400).json({ error: "Invalid event id" });
+  }
+
+  try {
+    const event = await getEventById(eventId);
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const role = await getCalendarRole(req.user.id, event.calendar_id);
+    if (!canRead(role)) {
+      return res.status(403).json({ error: "No permission" });
+    }
+
+    const result = await pool.query(
+      `SELECT u.id, u.name, u.email
+       FROM event_participants ep
+       JOIN users u ON ep.user_id = u.id
+       WHERE ep.event_id = $1`,
+      [eventId]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+
 // PUT /events/:id: Update an event if user can write to its calendar
 app.put("/events/:id", requireAuth, async (req, res) => {
   try {
@@ -617,10 +652,10 @@ app.delete("/events/:id", requireAuth, async (req, res) => {
 // Add participant to event
 app.post("/events/:id/participants", requireAuth, async (req, res) => {
   const eventId = Number(req.params.id);
-  const { user_id } = req.body;
+  const { email } = req.body;
 
-  if (Number.isNaN(eventId) || !user_id) {
-    return res.status(400).json({ error: "Invalid event id or user_id" });
+  if (Number.isNaN(eventId) || !email) {
+    return res.status(400).json({ error: "Invalid event id or email" });
   }
 
   try {
@@ -632,14 +667,33 @@ app.post("/events/:id/participants", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "No permission" });
     }
 
+    const userResult = await pool.query(
+      "SELECT id, name, email FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "Invalid email: user not found" });
+    }
+
+    const targetUser = userResult.rows[0];
+
     const result = await pool.query(
       `INSERT INTO event_participants (event_id, user_id)
        VALUES ($1, $2)
+       ON CONFLICT (event_id, user_id) DO NOTHING
        RETURNING *`,
-      [eventId, user_id]
+      [eventId, targetUser.id]
     );
 
-    return res.status(201).json(result.rows[0]);
+    if (result.rows.length === 0) {
+      return res.status(409).json({ error: "User is already a participant" });
+    }
+
+    return res.status(201).json({
+      message: "Participant added",
+      user: targetUser
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Server error" });
@@ -768,7 +822,7 @@ app.post("/auth/login", async (req, res) => {
 app.get("/me", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, name, email, global_role, created_at FROM users WHERE id = $1",
+      "SELECT id, name, email, global_role, created_at, profile_picture FROM users WHERE id = $1",
       [req.user.id]
     );
 
@@ -1179,6 +1233,28 @@ app.delete("/calendars/:id/members/:userId", requireAuth, async (req, res) => {
     console.error(err);
     return res.status(500).json({ error: "Server error" });
   }
+});
+
+// GET profile picture
+app.get("/me/profile-picture", requireAuth, async (req, res) => {
+  const result = await pool.query(
+    "SELECT profile_picture FROM users WHERE id = $1",
+    [req.user.id]
+  );
+
+  res.json({ profile_picture: result.rows[0].profile_picture });
+});
+
+// UPDATE profile picture
+app.post("/me/profile-picture", requireAuth, async (req, res) => {
+  const { profile_picture } = req.body;
+
+  await pool.query(
+    "UPDATE users SET profile_picture = $1 WHERE id = $2",
+    [profile_picture, req.user.id]
+  );
+
+  res.json({ message: "Updated" });
 });
 
 // Start the server
