@@ -96,6 +96,7 @@
     }
     .primary-btn { background: #2563eb; color: white; }
     .secondary-btn { background: #e5e7eb; color: #111827; }
+    .delete-btn { background: #dc2626; color: white; }
     .message {
       margin-top: 12px;
       padding: 10px 12px;
@@ -341,6 +342,7 @@
           </div>
           <div class="actions">
             <button class="primary-btn" onclick="openCalendar(${calendar.id})">Open Calendar</button>
+            ${calendar.role === "owner" ? `<button class="delete-btn" onclick="deleteCalendar(${calendar.id})">Delete Calendar</button>` : ``}
           </div>
         `;
         list.appendChild(div);
@@ -382,6 +384,35 @@
     function openCalendar(calendarId) {
       localStorage.setItem("selectedCalendarId", String(calendarId));
       window.location.href = "/index.html";
+    }
+
+    async function deleteCalendar(calendarId) {
+      const confirmed = confirm("Delete this calendar? All its events will also be deleted.");
+      if (!confirmed) return;
+
+      const res = await fetch(`/calendars/${calendarId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": "Bearer " + token
+        }
+      });
+
+      if (!res.ok) {
+        let data = {};
+        try {
+          data = await res.json();
+        } catch {}
+        showMessage(data.error || "Failed to delete calendar.", "error");
+        return;
+      }
+
+      const selectedCalendarId = localStorage.getItem("selectedCalendarId");
+      if (String(selectedCalendarId) === String(calendarId)) {
+        localStorage.removeItem("selectedCalendarId");
+      }
+
+      showMessage("Calendar deleted.");
+      loadCalendars();
     }
 
     async function initPage() {
