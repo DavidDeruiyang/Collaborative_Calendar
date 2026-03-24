@@ -92,6 +92,7 @@ event management with persistent storage. The system supports authenticated user
 - `DELETE /events/:id`
 - `GET /events/search?q=keyword`
 - `POST /events/:id/participants`
+- `GET /events/:id/participants`
 - `DELETE /events/:id/participants/:userId`
 
 ### Stats
@@ -247,6 +248,9 @@ Manually apply Kuernetes resources:
 `kubectl apply -f calendar-api-deployment.yaml`
 
 `kubectl apply -f calendar-api-service.yaml`
+
+For automated backup:
+`kubectl apply -f db-backup-cronjob.yaml`
 
 ------------------------------------------------------------------------
 
