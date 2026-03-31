@@ -485,6 +485,7 @@
 
     function connectSocket() {
       socket = io({
+        transports: ["websocket"],
         auth: { token: token }
       });
 

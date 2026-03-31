@@ -13,10 +13,12 @@ app.use(express.static(path.join(__dirname, 'frontend')));
 const port = 3000;
 const server = http.createServer(app);
 const io = new Server(server, {
+  transports: ["websocket"],
   cors: {
     origin: "*"
   }
 });
+const CALENDAR_SOCKET_CHANNEL = "calendar:socket-events";
 
 // auth const
 const bcrypt = require("bcryptjs");
@@ -42,14 +44,44 @@ const pool = new Pool({
 const redisClient = createClient({
   url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
 });
+const redisSubscriber = redisClient.duplicate();
 
 // Handle Redis connection errors
 redisClient.on("error", (err) => console.error("Redis Client Error", err));
+redisSubscriber.on("error", (err) => console.error("Redis Subscriber Error", err));
 
-// Connect to Redis
-(async () => {
+async function setupRedis() {
   await redisClient.connect();
-})();
+  await redisSubscriber.connect();
+
+  await redisSubscriber.subscribe(CALENDAR_SOCKET_CHANNEL, (message) => {
+    try {
+      const payload = JSON.parse(message);
+      const { room, eventName, data } = payload;
+
+      if (!room || !eventName) {
+        return;
+      }
+
+      io.to(room).emit(eventName, data);
+    } catch (err) {
+      console.error("Failed to process socket event message:", err);
+    }
+  });
+}
+
+async function broadcastCalendarUpdate(calendarId, eventName, data) {
+  const room = `calendar:${calendarId}`;
+
+  await redisClient.publish(
+    CALENDAR_SOCKET_CHANNEL,
+    JSON.stringify({
+      room,
+      eventName,
+      data
+    })
+  );
+}
 
 // Initialize eventCount in Redis if not set
 async function initializeEventCount() {
@@ -401,7 +433,7 @@ app.post("/events", requireAuth, async (req, res) => {
     });
 
     // socket io emission
-    io.to(`calendar:${calendarId}`).emit("event_created", result.rows[0]);
+    await broadcastCalendarUpdate(calendarId, "event_created", result.rows[0]);
 
     return res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -601,7 +633,11 @@ app.put("/events/:id", requireAuth, async (req, res) => {
     });
 
     // socket io emission
-    io.to(`calendar:${existingEvent.calendar_id}`).emit("event_updated", updateResult.rows[0]);
+    await broadcastCalendarUpdate(
+      existingEvent.calendar_id,
+      "event_updated",
+      updateResult.rows[0]
+    );
 
     return res.status(200).json(updateResult.rows[0]);
   } catch (err) {
@@ -640,7 +676,11 @@ app.delete("/events/:id", requireAuth, async (req, res) => {
     await pool.query("DELETE FROM events WHERE id = $1", [id]);
     await redisClient.decr("eventCount");
 
-    io.to(`calendar:${existingEvent.calendar_id}`).emit("event_deleted", deletedEventPayload);
+    await broadcastCalendarUpdate(
+      existingEvent.calendar_id,
+      "event_deleted",
+      deletedEventPayload
+    );
 
     return res.status(204).send();
   } catch (err) {
@@ -1257,7 +1297,17 @@ app.post("/me/profile-picture", requireAuth, async (req, res) => {
   res.json({ message: "Updated" });
 });
 
-// Start the server
-server.listen(port, () => {
-  console.log(`API + Socket.IO running on http://localhost:${port}`);
-});
+// Start the server after Redis is ready for caching + cross-replica socket broadcasts.
+async function startServer() {
+  try {
+    await setupRedis();
+    server.listen(port, () => {
+      console.log(`API + Socket.IO running on http://localhost:${port}`);
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+}
+
+startServer();
