@@ -107,6 +107,33 @@
   </div>
 
   <script>
+    const TOKEN_KEY = "token";
+    const CALENDAR_KEY = "selectedCalendarId";
+
+    function getToken() {
+      return sessionStorage.getItem(TOKEN_KEY);
+    }
+
+    function setToken(token) {
+      sessionStorage.setItem(TOKEN_KEY, token);
+    }
+
+    function clearToken() {
+      sessionStorage.removeItem(TOKEN_KEY);
+    }
+
+    function getSelectedCalendarId() {
+      return sessionStorage.getItem(CALENDAR_KEY);
+    }
+
+    function setSelectedCalendarId(calendarId) {
+      sessionStorage.setItem(CALENDAR_KEY, String(calendarId));
+    }
+
+    function clearSelectedCalendarId() {
+      sessionStorage.removeItem(CALENDAR_KEY);
+    }
+
     function showMessage(text, type) {
       const box = document.getElementById("message");
       box.textContent = text;
@@ -157,7 +184,8 @@
         return;
       }
 
-      localStorage.setItem("token", data.token);
+      setToken(data.token);
+      clearSelectedCalendarId();
       showMessage("Registration successful.", "success");
 
       setTimeout(() => {

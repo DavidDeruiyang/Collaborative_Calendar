@@ -320,8 +320,35 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const token = localStorage.getItem("token");
-    const selectedCalendarId = localStorage.getItem("selectedCalendarId");
+    const TOKEN_KEY = "token";
+    const CALENDAR_KEY = "selectedCalendarId";
+
+    function getToken() {
+      return sessionStorage.getItem(TOKEN_KEY);
+    }
+
+    function setToken(token) {
+      sessionStorage.setItem(TOKEN_KEY, token);
+    }
+
+    function clearToken() {
+      sessionStorage.removeItem(TOKEN_KEY);
+    }
+
+    function getSelectedCalendarId() {
+      return sessionStorage.getItem(CALENDAR_KEY);
+    }
+
+    function setSelectedCalendarId(calendarId) {
+      sessionStorage.setItem(CALENDAR_KEY, String(calendarId));
+    }
+
+    function clearSelectedCalendarId() {
+      sessionStorage.removeItem(CALENDAR_KEY);
+    }
+
+    const token = getToken();
+    const selectedCalendarId = getSelectedCalendarId();
 
     let calendarId = selectedCalendarId ? Number(selectedCalendarId) : null;
     let currentCalendarName = "";
@@ -338,8 +365,8 @@
     }
 
     function logout() {
-      localStorage.removeItem("token");
-      localStorage.removeItem("selectedCalendarId");
+      clearToken();
+      clearSelectedCalendarId();
       window.location.href = "/login.html";
     }
 
@@ -403,20 +430,6 @@
       return new Date(endTime) <= new Date(startTime);
     }
 
-    function findOverlap(startTime, endTime, ignoreEventId = null) {
-      const newStart = new Date(startTime).getTime();
-      const newEnd = new Date(endTime).getTime();
-
-      return allEvents.find(event => {
-        if (ignoreEventId !== null && event.id === ignoreEventId) return false;
-
-        const existingStart = new Date(event.start_time).getTime();
-        const existingEnd = new Date(event.end_time).getTime();
-
-        return newStart < existingEnd && newEnd > existingStart;
-      });
-    }
-
     function getFilteredEvents() {
       const searchText = document.getElementById("searchText").value.trim().toLowerCase();
       const filterDate = document.getElementById("filterDate").value;
@@ -471,7 +484,7 @@
       const selected = calendars.find(c => Number(c.id) === Number(calendarId));
 
       if (!selected) {
-        localStorage.removeItem("selectedCalendarId");
+        clearSelectedCalendarId();
         window.location.href = "/homepage.html";
         return;
       }
@@ -681,11 +694,6 @@
         return;
       }
 
-      const overlap = findOverlap(startTime, endTime);
-      if (overlap) {
-        showMessage("eventMessage", `Time overlap with: ${overlap.title}`, "warn");
-        return;
-      }
 
       const payload = {
         calendar_id: calendarId,
@@ -799,11 +807,6 @@
         return;
       }
 
-      const overlap = findOverlap(startTime, endTime, id);
-      if (overlap) {
-        showMessage("eventMessage", `Time overlap with: ${overlap.title}`, "warn");
-        return;
-      }
 
       const res = await fetch(`/events/${id}`, {
         method: "PUT",
