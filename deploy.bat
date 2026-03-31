@@ -22,5 +22,7 @@ kubectl apply -f .\calendar-redis-service.yaml
 kubectl apply -f .\calendar-api-deployment.yaml
 kubectl apply -f .\calendar-api-service.yaml
 
+kubectl apply -f .\db-backup-cronjob.yaml
+
 echo [*] Triggering rolling restart for API...
 kubectl rollout restart deployment calendar-api-deployment

@@ -4,11 +4,11 @@ metadata:
   name: backup-spaces-secret
 type: Opaque
 stringData:
-  AWS_ACCESS_KEY_ID: "YOUR_DO_SPACES_KEY"
-  AWS_SECRET_ACCESS_KEY: "YOUR_DO_SPACES_SECRET"
+  AWS_ACCESS_KEY_ID: "DO00649XAG7RWNT74FHK"
+  AWS_SECRET_ACCESS_KEY: "4sCZtwFyCs0ZGtUG3WmK7mf9aq5C3LPvAzNJo/Ordog"
   AWS_DEFAULT_REGION: "us-east-1"
-  SPACES_ENDPOINT: "https://nyc3.digitaloceanspaces.com"
-  SPACES_BUCKET: "YOUR_BUCKET_NAME"
+  SPACES_ENDPOINT: "https://tor1.digitaloceanspaces.com"
+  SPACES_BUCKET: "calendar-backups"
 
 ---
 apiVersion: batch/v1
