@@ -1,294 +1,118 @@
-# Collaborative Calendar (Kubernetes Edition)
+# Collaborative Calendar
 
-## DigitalOcean External IP: http://146.190.188.75
+**Live Deployment:** http://146.190.188.75
 
-A cloud-native collaborative calendar platform that supports shared
-event management with persistent storage. The system supports authenticated users, role-based calendar sharing, protected event management, real-time collaboration, and email notifications. The system runs as a containerized **Node.js API** deployed on **Kubernetes using Minikube**, with **PostgreSQL 17** as the database and **Redis** for caching.
+## Team Information
+### Team 31
+- **Peifeng Tian** — Student Number: 1001159257 — Email: edwardpc.tian@mail.utoronto.ca
+- **[Member 1 Full Name]** — Student Number: [xxxxxxx] — Email: [email]
+- **[Member 2 Full Name]** — Student Number: [xxxxxxx] — Email: [email]
+- **[Member 3 Full Name]** — Student Number: [xxxxxxx] — Email: [email]
+
+
+## Motivation
+
+We chose this project because collaborative scheduling is a practical and realistic problem for student groups, yet many existing calendar tools are too feature-heavy. We wanted to build a lightweight collaborative calendar platform that focuses on essential shared event management while also making the cloud deployment architecture explicit and understandable.
+
+This project was also a strong fit for the course objectives. It provided a concrete use case for containerization, Kubernetes orchestration, persistent relational storage, and cloud deployment in a managed environment.
+
+## Objectives
+
+The main objective of this project was to design and implement a cloud-native collaborative calendar platform that supports authenticated multi-user event management with persistent storage and cloud deployment.
+
+From the application perspective, the system was intended to support shared calendars, protected event operations, and collaborative scheduling among multiple users. From the infrastructure perspective, the project aimed to demonstrate a complete deployment workflow using containerized services, Kubernetes orchestration, and persistent database storage in the cloud.
+
+More specifically, our team aimed to achieve the following goals:
+
+1. Build a containerized backend service for a collaborative calendar application.
+2. Use Kubernetes as the orchestration platform for service management and deployment.
+3. Use PostgreSQL as the persistent relational database for structured user and event data.
+4. Deploy the system to DigitalOcean Kubernetes rather than limiting the project to local development.
+5. Ensure that the database state persists across redeployments and pod restarts.
+
+## Technical Stack
+
+### Application Stack
+
+- **Backend:** Node.js, Express
+- **Database:** PostgreSQL 17
+- **Cache / Statistics:** Redis
+- **Authentication:** JWT, bcrypt
+- **Real-time Communication:** Socket.IO
+- **Email Support:** Nodemailer with SMTP sandbox
+
+### Infrastructure Stack
+
+- **Containerization:** Docker
+- **Orchestration:** Kubernetes
+- **Cloud Provider:** DigitalOcean Kubernetes
+- **Persistent Storage:** PersistentVolume for PostgreSQL
+- **Configuration Management:** Kubernetes Secrets
+- **Database Initialization:** ConfigMap-based SQL initialization
+- **Deployment Automation:** deploy.bat
 
 ## Features
 
-- User registration and login with JWT authentication
-- Protected API routes using bearer tokens
-- Calendar-based role-based access control
-- Calendar sharing with three roles:
-  - **Owner**: full control of calendar, events, and members
-  - **Editor**: can view, create, update, and delete events
-  - **Viewer**: read-only access
-- Event CRUD with permission checks
-- Calendar member management
-- Redis-backed event count statistics
-- Real-time updates with WebSockets
-- Email notifications for:
-  - calendar sharing
-  - event creation
-  - event updates
-  - Event status tracking (scheduled, cancelled, completed)
-  - Event participant assignment management
-  - Search functionality for events by keyword or participant email
-
-## Tech Stack
-
-- **Backend:** Node.js, Express
-- **Database:** PostgreSQL
-- **Cache / Stats:** Redis
-- **Authentication:** JWT, bcrypt
-- **Real-time communication:** Socket.IO
-- **Email notifications:** Nodemailer with SMTP sandbox
-- **Containerization:** Docker
-- **Orchestration:** Kubernetes (Minikube for local cluster testing)
-
-## Architecture
-
-- **calendar-api**: Express backend service
-- **calendar-db**: PostgreSQL database
-- **calendar-redis**: Redis cache for event statistics
-- Kubernetes services expose the API and connect internal components.
-
-## Role Permissions
-
-### Owner
-- Create, read, update, delete calendars
-- Create, read, update, delete events
-- Share calendar with other users
-- Change member roles
-- Remove members
-
-### Editor
-- Read calendars shared with them
-- Create, read, update, delete events
-- Cannot manage members
-
-### Viewer
-- Read calendars shared with them
-- Read events only
-- Cannot create, update, or delete events
-- Cannot manage members
+**To be added**
 
-## API Endpoints
+## User Guide
 
-### Authentication
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /me`
+**To be added**
 
-### Calendars
-- `POST /calendars`
-- `GET /calendars`
-- `GET /calendars/:id`
-- `PUT /calendars/:id`
-- `DELETE /calendars/:id`
+## Cloud Deployment Guide
 
-### Calendar Sharing / Members
-- `POST /calendars/:id/share`
-- `GET /calendars/:id/members`
-- `PATCH /calendars/:id/members/:userId`
-- `DELETE /calendars/:id/members/:userId`
+The final version of the project is deployed on DigitalOcean Kubernetes.
 
-### Events
-- `POST /events`
-- `GET /events`
-- `GET /events/:id`
-- `PUT /events/:id`
-- `DELETE /events/:id`
-- `GET /events/search?q=keyword`
-- `POST /events/:id/participants`
-- `GET /events/:id/participants`
-- `DELETE /events/:id/participants/:userId`
+Deployment is automated through the provided deployment script, deploy.bat.
 
-### Stats
-- `GET /stats`
+Running this script applies the required Kubernetes resources and deploys the application to the cloud environment.
 
-## Kubernetes Secrets
+## Deployment Information
 
-The project requires these secrets:
+The live deployment URL of the application is:
 
-- `calendar-db-secret`
-  - database password
-- `calendar-api-secret`
-  - JWT secret
-- `calendar-mail-secret`
-  - SMTP credentials for email notifications  
+http://146.190.188.75
 
-<br>
+## AI Assistance & Verification (Summary)
 
-------------------------------------------------------------------------
+AI was used as a supporting tool rather than as a substitute for implementation or technical judgment.
 
-# Local Deployment
-## Prerequisites
+One use of AI was in presentation preparation. In particular, some presentation visuals were AI-generated.
 
-Before running the project, make sure the following tools are installed:
+AI was also used selectively during deployment and infrastructure debugging. Its main contributions were in helping identify ways to debug Kubernetes pods, determine how to enter PostgreSQL and inspect the database directly when resolving SQL-related bugs, and troubleshoot connectivity issues between the API and the database. In one case, AI-assisted troubleshooting helped identify that some YAML configuration references did not match correctly during deployment, which caused the API and database services to fail to connect.
 
--   Docker Desktop
--   Minikube
--   kubectl
--   PowerShell (Windows)
+Correctness was verified through technical means rather than by relying on AI output alone. Verification included checking pod status, inspecting logs, entering PostgreSQL to inspect database state directly, and confirming that the corrected YAML references matched the deployed resources and restored API-database communication.
 
+**To be completed**
 
-## Project Architecture
+## Individual Contributions
 
-User Request \| v LoadBalancer Service (calendar-api-service) \| v
-Calendar API Pods (replicas = 2) \| \|-- PostgreSQL
-(calendar-db-service) \| \|-- Redis (calendar-redis-service)
+### Peifeng Tian
 
-Components used in this deployment:
+Peifeng Tian was primarily responsible for the infrastructure and deployment side of the project. This included the overall infrastructure setup, the cloud deployment workflow, and PostgreSQL persistent storage configuration.
 
--   Calendar API -- Node.js REST service
--   PostgreSQL -- persistent relational database
--   Redis -- caching layer
--   PersistentVolumeClaim -- database storage
--   ConfigMap -- database initialization script
--   Secret -- database credentials
--   Deployment -- manages pod replicas
--   Service -- exposes pods through a load balancer
+Specific contributions included:
 
+- setting up the infrastructure required for containerized deployment
+- managing deployment configuration for the application and supporting services
+- deploying the final system to DigitalOcean Kubernetes
+- configuring and maintaining PostgreSQL persistent storage
+- supporting deployment reproducibility through the deploy.bat workflow
+- debugging infrastructure and deployment issues, including pod-level troubleshooting
+- identifying and fixing configuration mismatches in YAML files that caused API and database connectivity failures
 
-## Deployment Steps
+### [Member 2 Name]
 
-### 1. Start Docker Desktop
+**To be completed**
 
-Ensure Docker Desktop is running before starting Minikube.
+### [Member 3 Name]
 
-### 2. Start Minikube
+**To be completed**
 
-minikube start
+### [Member 4 Name]
 
-### 3. Configure Docker to use Minikube Docker
+**To be completed**
 
-Run this in every new terminal before building the image:
+## Lessons Learned and Concluding Remarks
 
-minikube docker-env \| Invoke-Expression
-
-### 4. Build the API Image
-
-docker build -t nodejs-image-v1 .
-
-### 5. Deploy Kubernetes Resources
-
-Run:
-
-.`\deploy`{=tex}.bat
-
-This deploys:
-
--   PostgreSQL Deployment + Service
--   Redis Deployment + Service
--   Calendar API Deployment + Service
--   PersistentVolumeClaim
--   ConfigMap
--   Secret
-
-------------------------------------------------------------------------
-
-# Accessing the Application
-
-Expose the API with:
-
-`minikube service calendar-api-service --url`
-
-`kubectl port-forward service/calendar-api-service 3000:3000`
-
-You will receive a URL similar to:
-
-http://127.0.0.1:xxxxx
-
-Example endpoints:
-
-GET /events\
-POST /events\
-GET /stats
-
-Example:
-
-http://127.0.0.1:xxxxx/events
-
-------------------------------------------------------------------------
-
-# Useful Kubernetes Commands
-
-Check cluster resources:
-
-`kubectl get all`
-
-Check pods:
-
-`kubectl get pods`
-
-View API logs:
-
-`kubectl logs -f -l app=calendar-api`
-
-Restart API deployment:
-
-`kubectl rollout restart deployment calendar-api-deployment`
-
-Delete a pod:
-
-`kubectl delete pod `<pod-name>`{=html}`
-
-Manually apply Kuernetes resources: 
-
-`kubectl apply -f calendar-db-secret.yaml`
-
-`kubectl apply -f calendar-api-secret.yaml`
-
-`kubectl apply -f calendar-mail-secret.yaml`
-
-`kubectl apply -f db-pvc.yaml`
-
-`kubectl apply -f postgres-init-configmap.yaml`
-
-`kubectl apply -f calendar-db-deployment.yaml`
-
-`kubectl apply -f calendar-db-service.yaml`
-
-`kubectl apply -f calendar-redis-deployment.yaml`
-
-`kubectl apply -f calendar-redis-service.yaml`
-
-`kubectl apply -f calendar-api-deployment.yaml`
-
-`kubectl apply -f calendar-api-service.yaml`
-
-For automated backup:
-`kubectl apply -f db-backup-cronjob.yaml`
-
-------------------------------------------------------------------------
-
-# Resetting the Database
-
-To wipe the database:
-
-`kubectl delete pvc db-pvc`
-
-Then redeploy:
-
-`.\deploy{=tex}.bat`
-
-------------------------------------------------------------------------
-
-# Troubleshooting
-
-ImagePullBackOff / ErrImagePull:
-
-Make sure you ran:
-
-minikube docker-env \| Invoke-Expression
-
-before building the image.
-
-Database stuck in Pending:
-
-kubectl get pvc
-
-Check API logs if API is not responding:
-
-kubectl logs -l app=calendar-api
-
-------------------------------------------------------------------------
-
-# Notes
-
--   API runs **2 replicas**
--   Health checks use the **/stats endpoint**
--   PostgreSQL data persists using **PersistentVolumeClaim**
--   Redis provides caching
+**To be completed**
