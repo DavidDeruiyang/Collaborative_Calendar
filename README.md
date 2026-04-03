@@ -2,12 +2,13 @@
 
 **Live Deployment:** http://146.190.188.75
 
+**Video Demo:** https://drive.google.com/file/d/1PqKE-YgKWEDCCuG3sXHx81muRoWNQFYi/view?usp=sharing
 ## Team Information
 ### Team 31
 - **Peifeng Tian** — Student Number: 1001159257 — Email: edwardpc.tian@mail.utoronto.ca
 - **[Member 1 Full Name]** — Student Number: [xxxxxxx] — Email: [email]
 - **[Member 2 Full Name]** — Student Number: [xxxxxxx] — Email: [email]
-- **[Member 3 Full Name]** — Student Number: [xxxxxxx] — Email: [email]
+- **Sanzhe Feng** — Student Number: 1006664003 — Email: sanzgari.feng@mail.utoronto.ca
 
 
 ## Motivation
@@ -109,9 +110,17 @@ Specific contributions included:
 
 **To be completed**
 
-### [Member 4 Name]
+### [Sanzhe Feng]
 
-**To be completed**
+Sanzhe Feng was primarily responsible for the frontend development of the project. This included the design and implementation of all user-facing interfaces and integration with backend services.
+
+Specific contributions included:
+
+- designing and implementing all frontend pages, including login, registration, homepage, and calendar interfaces
+- managing client-side session state using browser storage
+- integrating real-time updates with updating the UI dynamically
+- identifying and fixing a shared session state issue to ensure user session data remains isolated and cannot be overwritten during page refresh
+- debugging frontend issues and resolving integration problems between frontend and backend services
 
 ## Lessons Learned and Concluding Remarks
 
