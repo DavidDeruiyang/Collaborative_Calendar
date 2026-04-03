@@ -6,7 +6,7 @@
 ## Team Information
 ### Team 31
 - **Peifeng Tian** — Student Number: 1001159257 — Email: edwardpc.tian@mail.utoronto.ca
-- **[Member 1 Full Name]** — Student Number: [xxxxxxx] — Email: [email]
+- **Deruiyang Yang** — Student Number: 1006664655 — Email: derui.yang@mail.utoronto.ca
 - **[Member 2 Full Name]** — Student Number: [xxxxxxx] — Email: [email]
 - **Sanzhe Feng** — Student Number: 1006664003 — Email: sanzgari.feng@mail.utoronto.ca
 
@@ -102,9 +102,20 @@ Specific contributions included:
 - debugging infrastructure and deployment issues, including pod-level troubleshooting
 - identifying and fixing configuration mismatches in YAML files that caused API and database connectivity failures
 
-### [Member 2 Name]
+### [Derui Yang]
 
-**To be completed**
+Derui Yang is responsible for the backend application features of the project. This included implementing secure user authentication, enforcing role-based permissions, supporting real-time collaboration, and adding notification-related backend functionality.
+
+Specific contributions included:
+
+- implementing user registration and login with JWT-based authentication and bcrypt password hashing
+- protecting backend routes so only authenticated users can access application data
+- designing and implementing calendar-based role permissions for owner, editor, and viewer access
+- implementing backend logic for calendar sharing, member permission updates, and access-controlled event operations
+- building the real-time update mechanism using Socket.IO so users can see event changes without manually refreshing
+- extending the real-time architecture to work with multiple API replicas through Redis-backed cross-instance message broadcasting
+- adding email notification functionality for calendar sharing and event creation and update actions
+- debugging backend integration issues involving authentication, permissions, socket communication, and multi-user collaboration behavior
 
 ### [Member 3 Name]
 
