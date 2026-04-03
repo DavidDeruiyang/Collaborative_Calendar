@@ -54,7 +54,65 @@ More specifically, our team aimed to achieve the following goals:
 
 ## Features
 
-**To be added**
+### Containerization & Local Development
+- Application fully containerized using **Docker** (Node.js backend, PostgreSQL, Redis)
+- Multi-container setup managed with **Docker Compose** for local development
+- Ensures consistent environments across development and deployment
+
+### State Management & Persistence
+- Uses **PostgreSQL** for relational data storage (users, calendars, events, permissions)
+- Implements persistent storage using **Kubernetes PersistentVolumeClaims (PVCs)** to ensure data survives restarts
+- Database schema enforces relationships and data integrity (foreign keys, constraints)
+
+### Deployment (DigitalOcean - IaaS)
+- Deployed on **DigitalOcean Kubernetes (DOKS)**
+- Uses container images hosted in a registry and deployed to cloud infrastructure
+- Supports production-ready environment with external services (DB, Redis)
+
+### Orchestration (Kubernetes)
+- Kubernetes used for full system orchestration:
+  - **Deployments** for API, database, and Redis services
+  - **Services** for internal networking and communication
+  - **PersistentVolumeClaims** for database storage
+- API configured with **multiple replicas** for high availability
+- Readiness and liveness probes ensure system reliability
+
+### Monitoring & Observability
+- Integrated with **DigitalOcean monitoring tools**
+- Tracks system metrics such as CPU, memory, and container health
+- Logs available through Kubernetes for debugging and system visibility
+
+## Advanced Features
+
+### Real-Time Collaboration (WebSockets)
+- Implemented using **Socket.IO**
+- Users receive live updates when events are created, updated, or deleted
+- Supports **multi-replica architecture** using **Redis Pub/Sub adapter**
+- Ensures synchronization across distributed backend instances
+
+### Security & Access Control
+- Authentication implemented using **JWT (JSON Web Tokens)**
+- Passwords securely hashed with **bcrypt**
+- Role-based authorization:
+  - Owner, Editor, Viewer permissions per calendar
+- Secure API endpoints and protected WebSocket connections
+
+### External Service Integration (Email Notifications)
+- Integrated with **SMTP (Mailtrap)** for email notifications
+- Automatically sends notifications for:
+  - calendar sharing
+  - event creation and updates
+- Demonstrates integration with external communication services
+
+### Backup & Recovery
+- Automated database backups using **Kubernetes CronJob**
+- Backups uploaded to **DigitalOcean Spaces (S3-compatible storage)**
+- Enables recovery and protects against data loss
+
+### High Availability & Scalability
+- API deployed with **multiple replicas** in Kubernetes
+- Redis-based messaging ensures consistency across instances
+- System designed to scale horizontally with increasing load
 
 ## User Guide
 
@@ -102,7 +160,7 @@ Specific contributions included:
 - debugging infrastructure and deployment issues, including pod-level troubleshooting
 - identifying and fixing configuration mismatches in YAML files that caused API and database connectivity failures
 
-### [Derui Yang]
+### Derui Yang
 
 Derui Yang is responsible for the backend application features of the project. This included implementing secure user authentication, enforcing role-based permissions, supporting real-time collaboration, and adding notification-related backend functionality.
 
@@ -121,7 +179,7 @@ Specific contributions included:
 
 **To be completed**
 
-### [Sanzhe Feng]
+### Sanzhe Feng
 
 Sanzhe Feng was primarily responsible for the frontend development of the project. This included the design and implementation of all user-facing interfaces and integration with backend services.
 
