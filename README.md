@@ -193,4 +193,8 @@ Specific contributions included:
 
 ## Lessons Learned and Concluding Remarks
 
-**To be completed**
+Throughout this project, we gained experience in designing and deploying a cloud-native, distributed application. We have developed a strong understanding of **state management in containerized environments**. Using PostgreSQL with Kubernetes PersistentVolumeClaims highlighted the importance of maintaining persistent storage to ensure data durability across restarts and deployments. Additionally, working with Kubernetes provided hands-on experience with core concepts such as Deployments, Services, and scaling, reinforcing how orchestration improves system reliability and availability. 
+
+Implementing **JWT-based authentication, password hashing, and secrets management** helped us follow best practices for protecting user data and securing APIs. We also learned how to debug and monitor a distributed system using logs and cloud provider tools, which is essential when working with multiple interconnected services. We also learned that real-time communication using WebSockets does not naturally scale and requires a shared messaging layer, such as Redis Pub/Sub, to synchronize events across instances.
+
+Overall, this project demonstrates a fully containerized, cloud-native collaborative calendar system that integrates authentication, role-based access control, real-time updates, and cloud deployment. It successfully meets the course requirements while providing valuable experience in backend development, distributed system design, and modern DevOps practices. The system is scalable and extensible, with opportunities for future improvements such as enhanced user interfaces, auto-scaling, and additional analytics features.
