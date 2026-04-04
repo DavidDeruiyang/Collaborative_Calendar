@@ -116,7 +116,121 @@ More specifically, our team aimed to achieve the following goals:
 
 ## User Guide
 
-**To be added**
+This section provides step-by-step instructions for using the main features of the Collaborative Calendar application.
+
+---
+
+### 1. Register an Account
+
+1. Navigate to the Register page (`/register.html`)
+2. Enter:
+   - Name  
+   - Email  
+   - Password  
+   - Confirm Password  
+3. Click **Register**
+
+After successful registration, you can log in using your credentials.
+
+---
+
+### 2. Login
+
+1. Go to the Login page (`/login.html`)
+2. Enter your email and password  
+3. Click **Login**
+
+After logging in, you will be redirected to your homepage.
+
+---
+
+### 3. Homepage (Dashboard)
+
+On the homepage, you can:
+
+- View your user information  
+- Upload or reset your profile picture  
+- View your calendars  
+- Navigate to a selected calendar  
+
+
+
+---
+
+### 4. Access a Calendar
+
+1. Select a calendar from the homepage  
+2. You will be redirected to the calendar page  
+
+Here, you can view and manage events within that calendar.
+
+
+---
+
+### 5. Create an Event
+
+1. Fill in the event details:
+   - Title  
+   - Location  
+   - Start time  
+   - End time  
+   - Description (optional)  
+2. Click **Create Event**
+
+The event will appear in the event list.
+
+
+---
+
+### 6. Edit an Event
+
+1. Click **Edit** on an existing event  
+2. Modify the fields  
+3. Click **Save Changes**
+
+
+---
+
+### 7. Delete an Event
+
+1. Click **Delete** on an event  
+2. Confirm deletion if prompted  
+
+The event will be removed from the calendar.
+
+
+
+---
+
+### 8. Search and Filter Events
+
+- Use the **search bar** to filter events by title  
+- Use the **date selector** to filter events by date  
+- Click **Clear Filters** to reset  
+
+
+
+---
+
+### 9. Share a Calendar
+
+1. Enter the email of the user you want to share with  
+2. Select a permission level:
+   - **viewer** → read-only access  
+   - **editor** → can modify events  
+3. Click **Share Calendar**
+
+
+---
+
+###  10. Logout
+
+- Click the **Logout** button on any page  
+- Your session will be cleared and you will be redirected to login  
+
+---
+
+
 
 ## Cloud Deployment Guide
 
@@ -141,6 +255,9 @@ One use of AI was in presentation preparation. In particular, some presentation 
 AI was also used selectively during deployment and infrastructure debugging. Its main contributions were in helping identify ways to debug Kubernetes pods, determine how to enter PostgreSQL and inspect the database directly when resolving SQL-related bugs, and troubleshoot connectivity issues between the API and the database. In one case, AI-assisted troubleshooting helped identify that some YAML configuration references did not match correctly during deployment, which caused the API and database services to fail to connect.
 
 Correctness was verified through technical means rather than by relying on AI output alone. Verification included checking pod status, inspecting logs, entering PostgreSQL to inspect database state directly, and confirming that the corrected YAML references matched the deployed resources and restored API-database communication.
+
+AI was also used selectively during frontend development and debugging. Its main contributions were in helping reason about client-side state management, particularly in identifying potential issues with session handling using browser storage. For example, AI provided guidance on how sessionStorage behaves across page refreshes and highlighted common pitfalls related to stale or incorrectly shared state. This was useful in confirming our understanding when debugging a shared session state issue, where user data could be overwritten after a refresh. AI also assisted in reviewing frontend-backend integration logic, such as ensuring that authentication tokens were consistently included in API requests and that UI updates correctly reflected backend responses.
+
 
 **To be completed**
 
