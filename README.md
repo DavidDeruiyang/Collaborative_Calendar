@@ -90,7 +90,7 @@ This project directly fulfills the core course requirements in the following way
 - Orchestration requirement is fulfilled using Kubernetes Deployments, Services, and PersistentVolumeClaims.
 - Persistent storage requirement is demonstrated through PostgreSQL running with Kubernetes-backed persistent volumes.
 - Cloud deployment requirement is satisfied through deployment to DigitalOcean Kubernetes (DOKS).
-- High availability and scalability are implemented using multi-replica API deployments and Redis-based cross-instance synchronization.
+- High availability for the API layer is implemented using multi-replica deployments, while Redis-based Pub/Sub enables cross-instance real-time synchronization.
 - Monitoring and observability are supported through Kubernetes logs and DigitalOcean monitoring tools.
 
 These implementations demonstrate a complete cloud-native architecture rather than a local-only deployment.
