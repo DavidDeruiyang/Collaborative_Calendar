@@ -260,8 +260,9 @@ AI used as a limited support tool for backend feature development. It works to h
 
 AI was also used selectively during frontend development and debugging. Its main contributions were in helping reason about client-side state management, particularly in identifying potential issues with session handling using browser storage. For example, AI provided guidance on how sessionStorage behaves across page refreshes and highlighted common pitfalls related to stale or incorrectly shared state. This was useful in confirming our understanding when debugging a shared session state issue, where user data could be overwritten after a refresh. AI also assisted in reviewing frontend-backend integration logic, such as ensuring that authentication tokens were consistently included in API requests and that UI updates correctly reflected backend responses.
 
+AI was used selectively during backend data modeling and query refinement. It was primarily consulted to discuss relational schema structure and to review the correctness of multi-table SQL joins used in keyword-based search. AI was not used to generate final implementation code but rather to challenge design assumptions and explore alternative query structures.
 
-**To be completed**
+All decisions were validated independently through manual SQL testing, direct inspection of database constraints, and verification of access-control behavior to ensure that unauthorized data could not be retrieved.
 
 ## Individual Contributions
 
