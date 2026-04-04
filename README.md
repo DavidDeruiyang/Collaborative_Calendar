@@ -82,6 +82,19 @@ More specifically, our team aimed to achieve the following goals:
 - Tracks system metrics such as CPU, memory, and container health
 - Logs available through Kubernetes for debugging and system visibility
 
+### Alignment with Course Requirements
+
+This project directly fulfills the core course requirements in the following ways:
+
+- Containerization requirement is satisfied through Docker-based packaging of the backend, PostgreSQL, and Redis services.
+- Orchestration requirement is fulfilled using Kubernetes Deployments, Services, and PersistentVolumeClaims.
+- Persistent storage requirement is demonstrated through PostgreSQL running with Kubernetes-backed persistent volumes.
+- Cloud deployment requirement is satisfied through deployment to DigitalOcean Kubernetes (DOKS).
+- High availability and scalability are implemented using multi-replica API deployments and Redis-based cross-instance synchronization.
+- Monitoring and observability are supported through Kubernetes logs and DigitalOcean monitoring tools.
+
+These implementations demonstrate a complete cloud-native architecture rather than a local-only deployment.
+
 ## Advanced Features
 
 ### Real-Time Collaboration (WebSockets)
