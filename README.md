@@ -294,9 +294,20 @@ Specific contributions included:
 - adding email notification functionality for calendar sharing and event creation and update actions
 - debugging backend integration issues involving authentication, permissions, socket communication, and multi-user collaboration behavior
 
-### [Member 3 Name]
+### Leyang Zhang
 
-**To be completed**
+Leyang Zhang was primarily responsible for the backend data modeling and database-level integrity design of the project. This included designing the relational schema, enforcing structured data constraints, and implementing query-level data filtering mechanisms.
+
+Specific contributions included:
+
+- designing the relational database schema for users, calendars, events, and participant relationships
+- implementing foreign key relationships to ensure referential integrity across core entities
+- modeling many-to-many relationships for event participants through a dedicated junction table
+- defining CHECK and UNIQUE constraints to prevent invalid state transitions and duplicate assignments
+- implementing keyword-based event search using multi-table SQL joins
+- designing and implementing query-level access filtering to ensure that users can only retrieve data they are authorized to access
+- enforcing consistency and data correctness at the database layer rather than relying solely on application-level validation
+- debugging SQL-related issues by directly inspecting PostgreSQL data and validating query behavior
 
 ### Sanzhe Feng
 
