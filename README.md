@@ -7,7 +7,7 @@
 ### Team 31
 - **Peifeng Tian** — Student Number: 1001159257 — Email: edwardpc.tian@mail.utoronto.ca
 - **Deruiyang Yang** — Student Number: 1006664655 — Email: derui.yang@mail.utoronto.ca
-- **[Member 2 Full Name]** — Student Number: [xxxxxxx] — Email: [email]
+- **Leyang Zhang** — Student Number: 1006032598 — Email: leyang.zhang@mail.utoronto.ca
 - **Sanzhe Feng** — Student Number: 1006664003 — Email: sanzgari.feng@mail.utoronto.ca
 
 
