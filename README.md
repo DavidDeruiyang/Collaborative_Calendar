@@ -1,8 +1,9 @@
 # Collaborative Calendar
 
-**Live Deployment:** http://146.190.188.75
+**Live Deployment:** http://146.190.188.75 
 
 **Video Demo:** https://drive.google.com/file/d/1PqKE-YgKWEDCCuG3sXHx81muRoWNQFYi/view?usp=sharing
+
 ## Team Information
 ### Team 31
 - **Peifeng Tian** — Student Number: 1001159257 — Email: edwardpc.tian@mail.utoronto.ca
@@ -258,6 +259,10 @@ Running this script applies the required Kubernetes resources and deploys the ap
 The live deployment URL of the application is:
 
 http://146.190.188.75
+
+## Video Demo
+
+**Video Demo:** https://drive.google.com/file/d/1PqKE-YgKWEDCCuG3sXHx81muRoWNQFYi/view?usp=sharing
 
 ## AI Assistance & Verification (Summary)
 
